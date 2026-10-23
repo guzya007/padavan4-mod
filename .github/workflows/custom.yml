@@ -83,11 +83,6 @@ on:
         description: "1000Mhz=0x312 1100Mhz=0x362 1120Mhz=0x372 1200Mhz=0x3B2"
         type: choice
         options: [ '0x312', '0x362', '0x372', '0x3B2' ]
-      plugins:
-        description: 'Plugin JSON, e.g. {"shadowsocks":"y","xray":"n"}'
-        required: true
-        type: string
-        default: '{"shadowsocks":"n","v2ray":"n","xray":"n","trojan":"n","ssobfs":"n","smartdns":"n","vlmcsd":"n","ttyd":"n","iperf3":"n"}'
       customization:
         description: 'Customization JSON'
         required: true
@@ -142,29 +137,15 @@ jobs:
             autoconf automake liblzma-dev libltdl-dev liblzo2-dev jq
           echo "BUILD_DATE=$(TZ='Asia/Shanghai' date +%Y%m%d)" >> $GITHUB_ENV
 
-      - name: Validate Input JSON
+      - name: Validate Customization JSON
         run: |
-          jq empty <<< '${{ inputs.plugins }}' || { echo "❌ Invalid plugins JSON"; exit 1; }
           jq empty <<< '${{ inputs.customization }}' || { echo "❌ Invalid customization JSON"; exit 1; }
 
-      - name: Export Customization & Plugin Flags
+      - name: Export Customization Flags
         run: |
-          export_json() {
-            local JSON=$1
-            local PREFIX=$2
-            echo "$JSON" | jq -r 'to_entries[] | "\(.key)=\(.value)"' | while IFS='=' read -r k v; do
-              echo "${PREFIX}${k^^}=$v" >> $GITHUB_ENV
-            done
-          }
-
-          export_json '${{ inputs.customization }}' ""
-          if [ "${{ inputs.nanoversion }}" = "true" ]; then
-            echo "⚠️ Nano version — all plugins disabled."
-            echo '${{ inputs.plugins }}' | jq 'with_entries(.value="n")' > plugins_fixed.json
-          else
-            echo '${{ inputs.plugins }}' > plugins_fixed.json
-          fi
-          export_json "$(cat plugins_fixed.json)" "PLUGIN_"
+          echo '${{ inputs.customization }}' | jq -r 'to_entries[] | "\(.key)=\(.value)"' | while IFS='=' read -r k v; do
+            echo "${k^^}=$v" >> $GITHUB_ENV
+          done
 
       - name: Apply Configurations
         run: |
@@ -172,10 +153,6 @@ jobs:
           bash trunk/custom/scripts/setip.sh "$LANIP" trunk/user/shared/src/defaults.h trunk/user/www/dict/CN.dict
           bash trunk/custom/scripts/setaccount.sh "$SIGNACCOUNT" "$SIGNPASSWORD" trunk/user/shared/src/defaults.h
           bash trunk/custom/scripts/setwifi.sh "$WIFI2GSSID" "$WIFI2GPSK" "$WIFI5GSSID" "$WIFI5GPSK" trunk/user/shared/src/defaults.h
-
-          for key in $(env | grep '^PLUGIN_' | cut -d= -f1); do
-            echo "CONFIG_FIRMWARE_INCLUDE_${key#PLUGIN_}=${!key}" >> "$CONFIGFILE"
-          done
 
           if [ "${{ inputs.cpufreq }}" = "true" ]; then
             echo "CONFIG_FIRMWARE_INCLUDE_OC=y" >> "$CONFIGFILE"
@@ -235,7 +212,6 @@ jobs:
             - Toolchain: ${{ inputs.toolchain }}
             - Nano: ${{ inputs.nanoversion }}
             - CPU OC: ${{ inputs.cpufreq }} (${{ inputs.mt7621_oc }})
-            - Plugins: ${{ inputs.plugins }}
             - Custom: ${{ inputs.customization }}
           files: trunk/output/*.trx
 
