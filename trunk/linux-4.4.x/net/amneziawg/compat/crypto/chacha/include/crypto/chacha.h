@@ -6,6 +6,7 @@
 #include <zinc/chacha20.h>
 #include <linux/string.h>
 
+#define CHACHA_KEY_SIZE CHACHA20_KEY_SIZE
 #define CHACHA_BLOCK_SIZE CHACHA20_BLOCK_SIZE
 
 static inline void chacha_init(u32 *state, const u32 *key, const u8 *iv)
