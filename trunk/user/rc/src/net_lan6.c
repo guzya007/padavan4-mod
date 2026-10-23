@@ -98,6 +98,15 @@ int get_lan_dhcp6s_mode(void)
 	return nvram_get_int("ip6_lan_dhcp");
 }
 
+int is_ipv6_nat_enabled(void)
+{
+	int ipv6_type = get_ipv6_type();
+
+	return !get_ap_mode() && nvram_match("ip6_nat", "1") &&
+		(ipv6_type == IPV6_NATIVE_STATIC || ipv6_type == IPV6_NATIVE_DHCP6) &&
+		is_lan_addr6_static() == 1;
+}
+
 int get_lan_dhcp6s_irt(void)
 {
 	int irt = 600;			// 10 min (IRT_MINIMUM=600)

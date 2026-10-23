@@ -375,7 +375,8 @@ void wan6_up(char *wan_ifname, int unit)
 				doSystem("ip -6 route add default via %s metric %d", wan_gate6, 1);
 			}
 		} else {
-			doSystem("ip -6 route add default dev %s metric %d", wan_ifname, 2048);
+			if (ppp_ifindex(wan_ifname) >= 0)
+				doSystem("ip -6 route add default dev %s metric %d", wan_ifname, 1);
 			allow_ra = nvram_invmatch("ip6_wan_dhcp", "1");
 			control_if_ipv6_privacy(wan_ifname, allow_ra && nvram_match("ip6_wan_priv", "1"));
 			control_if_ipv6_autoconf(wan_ifname, allow_ra);
@@ -385,6 +386,7 @@ void wan6_up(char *wan_ifname, int unit)
 			start_dhcp6c(wan_ifname);
 		}
 	}
+	notify_rc("restart_firewall_wan");
 }
 
 void wan6_down(char *wan_ifname, int unit)
@@ -422,6 +424,7 @@ void wan6_down(char *wan_ifname, int unit)
 
 	// clear DNS6 for resolv.conf
 	set_wan_unit_value(unit, "dns6", "");
+	notify_rc("restart_firewall_wan");
 }
 
 int dhcp6c_main(int argc, char **argv)

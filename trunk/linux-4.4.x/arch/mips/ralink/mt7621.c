@@ -274,7 +274,7 @@ static void __init mt7621_detect_memory_region(struct ralink_soc_info *soc_info)
 		add_memory_region(0, size, BOOT_MEM_RAM);
 	} else {
 		add_memory_region(0, SZ_512M - SZ_64M, BOOT_MEM_RAM);
-		add_memory_region(SZ_512M, SZ_64M, BOOT_MEM_INIT_RAM);
+		add_memory_region(SZ_512M, SZ_64M, BOOT_MEM_RAM);
 	}
 }
 

@@ -1713,10 +1713,34 @@ ip6t_mangle_rules(char *man_if)
 }
 
 static void
-ip6t_nat_rules(char *man_if)
+ip6t_nat_rules(void)
 {
 	FILE *fp;
 	const char *ipt_file = "/tmp/ip6t_nat.rules";
+	char lan_addr6[INET6_ADDRSTRLEN], lan_net6[INET6_ADDRSTRLEN];
+	char *wan_if = get_wan_unit_value(0, "ifname6");
+	struct in6_addr addr6;
+	int prefix, use_nat = 0;
+
+	if (is_ipv6_nat_enabled() && *wan_if && strcmp(wan_if, IFNAME_BR) &&
+	    get_ifaddr6(IFNAME_BR, 0, lan_addr6)) {
+		prefix = ipv6_from_string(lan_addr6, &addr6);
+		if (prefix >= 48 && prefix <= 64 &&
+		    !IN6_IS_ADDR_UNSPECIFIED(&addr6) && !IN6_IS_ADDR_LOOPBACK(&addr6) &&
+		    !IN6_IS_ADDR_LINKLOCAL(&addr6) && !IN6_IS_ADDR_MULTICAST(&addr6)) {
+			ipv6_to_net(&addr6, prefix);
+			inet_ntop(AF_INET6, &addr6, lan_net6, sizeof(lan_net6));
+			snprintf(lan_net6 + strlen(lan_net6), sizeof(lan_net6) - strlen(lan_net6), "/%d", prefix);
+			use_nat = 1;
+		}
+	}
+
+	if (use_nat) {
+		module_smart_load("ip6table_nat", NULL);
+		module_smart_load("ip6t_MASQUERADE", NULL);
+	} else if (!is_module_loaded("ip6table_nat")) {
+		return;
+	}
 
 	if (!(fp=fopen(ipt_file, "w")))
 		return;
@@ -1726,10 +1750,11 @@ ip6t_nat_rules(char *man_if)
 	fprintf(fp, ":%s %s [0:0]\n", "INPUT", "ACCEPT");
 	fprintf(fp, ":%s %s [0:0]\n", "OUTPUT", "ACCEPT");
 	fprintf(fp, ":%s %s [0:0]\n", "POSTROUTING", "ACCEPT");
-	fprintf(fp, "-A POSTROUTING -s fc00:101:101::1/64 -j FULLCONENAT\n");
+	if (use_nat)
+		fprintf(fp, "-A POSTROUTING -s %s -o %s -j MASQUERADE\n", lan_net6, wan_if);
 	fprintf(fp, "COMMIT\n\n");
 	fclose(fp);
-		doSystem("ip6tables-restore %s", ipt_file);
+	doSystem("ip6tables-restore %s", ipt_file);
 }
 
 
@@ -2210,7 +2235,7 @@ start_firewall_ex(void)
 #if defined (USE_IPV6)
 	/* IPv6 Mangle rules */
 	ip6t_mangle_rules(man_if);
-	ip6t_nat_rules(man_if);
+	ip6t_nat_rules();
 	/* IPv6 Filter rules */
 	ip6t_filter_rules(man_if, wan_if, lan_if, logaccept, logdrop, i_tcp_mss);
 #endif

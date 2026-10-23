@@ -351,6 +351,7 @@ int ipv6_compact(const char *str6, char *p_comp6, int allow_prefix);
 /* net_lan6.c */
 int is_lan_radv_on(void);
 int is_lan_addr6_static(void);
+int is_ipv6_nat_enabled(void);
 int get_lan_dhcp6s_mode(void);
 int get_lan_dhcp6s_irt(void);
 int get_lan_dhcp6s_prefix_size(void);

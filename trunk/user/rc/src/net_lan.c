@@ -304,7 +304,7 @@ config_bridge(int is_ap_mode)
 
 	if (!is_ap_mode) {
 		igmp_static_port = -1;
-		if (nvram_match("mr_enable_x", "1")) {
+		if (nvram_match("mr_enable_x", "1") && check_if_file_exist("/bin/igmpproxy")) {
 			multicast_router = 2;   // bridge is mcast router path (br0 <--igmpproxy--> eth3)
 			multicast_querier = 0;  // bridge is not needed internal mcast querier (igmpproxy is mcast querier)
 		} else {

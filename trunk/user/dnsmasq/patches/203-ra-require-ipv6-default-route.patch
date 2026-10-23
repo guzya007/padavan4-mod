@@ -1,0 +1,78 @@
+--- a/src/radv.c
++++ b/src/radv.c
+@@ -66,4 +66,46 @@ static unsigned int calc_interval(struct ra_interface *ra);
+ static unsigned int calc_prio(struct ra_interface *ra);
+ static struct ra_interface *find_iface_param(char *iface);
+-
++
++#ifdef HAVE_LINUX_NETWORK
++static int have_default_route(const char *lan_iface)
++{
++  FILE *fp = fopen("/proc/net/ipv6_route", "r");
++  char line[512], dest[33], source[33], gateway[33], iface[IF_NAMESIZE];
++  unsigned int dest_len, source_len, metric, refcnt, use, flags;
++  int found = 0;
++  const char *zero = "00000000000000000000000000000000";
++
++  if (!fp)
++    return 0;
++
++  while (fgets(line, sizeof(line), fp))
++    {
++      struct ifreq ifr;
++      int fd;
++      if (sscanf(line, "%32s %x %32s %x %32s %x %x %x %x %15s",
++                 dest, &dest_len, source, &source_len, gateway,
++                 &metric, &refcnt, &use, &flags, iface) != 10 ||
++          dest_len != 0 || source_len != 0 || strcmp(dest, zero) ||
++          !(flags & 0x1) || (flags & 0x200) || !strcmp(iface, lan_iface) ||
++          !strcmp(iface, "lo"))
++        continue;
++
++      fd = socket(AF_INET6, SOCK_DGRAM, 0);
++      memset(&ifr, 0, sizeof(ifr));
++      strncpy(ifr.ifr_name, iface, sizeof(ifr.ifr_name) - 1);
++      if (fd == -1)
++        continue;
++      if (ioctl(fd, SIOCGIFFLAGS, &ifr) == -1 || !(ifr.ifr_flags & IFF_UP) ||
++          !(ifr.ifr_flags & IFF_RUNNING) ||
++          (!strcmp(gateway, zero) && !(ifr.ifr_flags & IFF_POINTOPOINT)))
++        { close(fd); continue; }
++      close(fd);
++      found = 1;
++      break;
++    }
++  fclose(fp);
++  return found;
++}
++#endif
++
+ static int hop_limit;
+@@ -291,5 +333,9 @@ static void send_ra_alias(time_t now, int iface, char *iface_name, struct in6_addr *dest, int send_iface)
+   ra->hop_limit = hop_limit;
+   ra->flags = parm.prio;
+   ra->lifetime = htons(calc_lifetime(ra_param));
++#ifdef HAVE_LINUX_NETWORK
++  if (!have_default_route(iface_name))
++    ra->lifetime = 0;
++#endif
+   ra->reachable_time = 0;
+   ra->retrans_time = 0;
+--- a/src/netlink.c
++++ b/src/netlink.c
+@@ -377,3 +423,15 @@ void netlink_multicast(void)
+ static unsigned nl_async(struct nlmsghdr *h, unsigned state)
+ {
++#ifdef HAVE_DHCP6
++  if (daemon->doing_ra && h->nlmsg_pid == 0 &&
++      (h->nlmsg_type == RTM_NEWROUTE || h->nlmsg_type == RTM_DELROUTE) &&
++      h->nlmsg_len >= NLMSG_LENGTH(sizeof(struct rtmsg)))
++    {
++      struct rtmsg *rtm = NLMSG_DATA(h);
++      if (rtm->rtm_family == AF_INET6 && rtm->rtm_dst_len == 0 &&
++          rtm->rtm_src_len == 0 && rtm->rtm_table == RT_TABLE_MAIN)
++        ra_start_unsolicited(dnsmasq_time(), NULL);
++    }
++#endif
++
+   if (h->nlmsg_type == NLMSG_ERROR)

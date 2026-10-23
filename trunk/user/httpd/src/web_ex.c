@@ -98,12 +98,7 @@ nvram_commit_safe(void)
 void
 sys_reboot(void)
 {
-#ifdef MTD_FLASH_32M_REBOOT_BUG
-	doSystem("/sbin/mtd_storage.sh %s", "save");
-	system("/bin/mtd_write -r unlock mtd1");
-#else
 	kill(1, SIGTERM);
-#endif
 }
 
 char *
@@ -3571,15 +3566,22 @@ apply_cgi(const char *url, webs_t wp)
 	}
 	else if (!strcmp(value, " RestoreNVRAM "))
 	{
-		websApply(wp, "Restarting.asp");
-		nvram_set_int("restore_defaults", 1);
-		nvram_commit();
-		sys_reboot();
+		int old_restore = nvram_get_int("restore_defaults");
+		int sys_result = nvram_set_int("restore_defaults", 1);
+		if (sys_result == 0)
+			sys_result = nvram_commit();
+		if (sys_result != 0)
+			nvram_set_int("restore_defaults", old_restore);
+		websWrite(wp, "{\"sys_result\": %d, \"lan_ipaddr\": \"%s\"}", sys_result, DEF_LAN_ADDR);
+		websDone(wp, 200);
+		if (sys_result == 0)
+			sys_reboot();
 		return 0;
 	}
 	else if (!strcmp(value, " RestoreStorage "))
 	{
-		doSystem("/sbin/mtd_storage.sh %s", "reset");
+		int sys_result = doSystem("/sbin/mtd_storage.sh %s", "reset");
+		websWrite(wp, "{\"sys_result\": %d}", sys_result);
 		return 0;
 	}
 	else if (!strcmp(value, " CommitFlash "))

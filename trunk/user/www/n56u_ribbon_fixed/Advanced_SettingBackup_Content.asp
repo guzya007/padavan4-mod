@@ -90,9 +90,7 @@ function restoreNVRAM(){
 	alert_string += "\n<#Setting_factorydefault_hint2#>";
 	if(confirm(alert_string)){
 		document.form.action1.blur();
-		showLoading();
-		set_frm_action_apply(" RestoreNVRAM ");
-		document.form.submit();
+		send_reset_action(" RestoreNVRAM ", document.form.action1);
 	}else
 		return false;
 }
@@ -101,12 +99,41 @@ function restoreStorage(){
 	var alert_string = "<#Adm_Setting_store_hint#>";
 	alert_string += "\n<#Setting_factorydefault_hint2#>";
 	if(confirm(alert_string)){
-		showLoadingOne();
-		set_frm_action_apply(" RestoreStorage ");
-		document.form.submit();
+		send_reset_action(" RestoreStorage ", document.form.st_action1);
 	}
 	else
 		return false;
+}
+
+function send_reset_action(action, button){
+	button.disabled = true;
+	showLoading();
+	$j.ajax({
+		type: "post",
+		url: "/apply.cgi",
+		data: { action_mode: action },
+		dataType: "json",
+		error: function(){
+			button.disabled = false;
+			hideLoading();
+			alert("Failed!");
+		},
+		success: function(response){
+			if (!response || response.sys_result !== 0){
+				button.disabled = false;
+				hideLoading();
+				alert("Failed!");
+				return;
+			}
+			if (action == " RestoreNVRAM "){
+				var boot_time = board_boot_time();
+				showLoading(boot_time, "waiting");
+				setTimeout(function(){ location.href = "http://" + response.lan_ipaddr + "/"; }, (boot_time + 2) * 1000);
+			}else{
+				location.reload();
+			}
+		}
+	});
 }
 
 function send_commit_action(action_id,$button){

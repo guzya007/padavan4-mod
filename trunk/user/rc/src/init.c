@@ -106,7 +106,7 @@ catch_sig_fatal(int sig)
 	sync();
 
 #ifdef MTD_FLASH_32M_REBOOT_BUG
-	system("/bin/mtd_write -r unlock mtd1");
+	system("/bin/mtd_write -r unlock /dev/mtd1");
 #else
 	reboot(RB_AUTOBOOT);
 #endif

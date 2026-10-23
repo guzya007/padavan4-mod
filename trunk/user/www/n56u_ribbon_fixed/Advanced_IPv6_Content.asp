@@ -257,6 +257,7 @@ function change_ip6_service(){
 	showhide_div('tbl_ip6_wan', ip6on);
 	showhide_div('tbl_ip6_dns', ip6on);
 	showhide_div('tbl_ip6_lan', ip6on);
+	showhide_div('row_ip6_nat', ip6_con == "static" || ip6_con == "dhcp6");
 
 	if (!ip6on) {
 		showhide_div('tbl_ip6_sit', 0);
@@ -324,6 +325,7 @@ function change_ip6_lan_auto(){
 	var v = !document.form.ip6_lan_auto[0].checked;
 	showhide_div('row_ip6_lan_addr', v);
 	showhide_div('row_ip6_lan_size', v);
+	inputCtrl(document.form.ip6_nat, v);
 }
 
 function change_ip6_lan_radv(){
@@ -595,6 +597,15 @@ function change_ip6_lan_dhcp(){
                                             <th width="50%"><#IP6_LAN_Addr#></th>
                                             <td>
                                                 <input type="text" maxlength="40" style="width: 286px;" class="input" size="30" name="ip6_lan_addr" value="<% nvram_get_x("", "ip6_lan_addr"); %>" onkeypress="return is_string(this,event);" onblur="return validate_ip6addr(this);" />
+                                            </td>
+                                        </tr>
+                                        <tr id="row_ip6_nat">
+                                            <th width="50%">NAT66 (static LAN, no DHCPv6-PD)</th>
+                                            <td>
+                                                <select class="input" name="ip6_nat">
+                                                    <option value="0" <% nvram_match_x("", "ip6_nat", "0", "selected"); %>><#checkbox_No#> (*)</option>
+                                                    <option value="1" <% nvram_match_x("", "ip6_nat", "1", "selected"); %>><#checkbox_Yes#></option>
+                                                </select>
                                             </td>
                                         </tr>
                                         <tr id="row_ip6_lan_size">

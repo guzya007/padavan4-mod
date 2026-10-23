@@ -36,9 +36,12 @@ unescape(char *s)
 	while ((s = strpbrk(s, "%+"))) {
 		/* Parse %xx */
 		if (*s == '%') {
-			sscanf(s + 1, "%02x", &c);
+			if (!s[1] || !s[2] || sscanf(s + 1, "%02x", &c) != 1) {
+				s++;
+				continue;
+			}
 			*s++ = (char) c;
-			strncpy(s, s + 2, strlen(s) + 1);
+			memmove(s, s + 2, strlen(s + 2) + 1);
 		}
 		/* Space is special */
 		else if (*s == '+')
@@ -99,8 +102,14 @@ init_cgi(char *query)
 	while (strsep(&q, "&;"))
 		nel++;
 	if (htab == NULL)
-		htab = calloc(1, sizeof(htab));
-	hcreate_r(nel, htab);
+		htab = calloc(1, sizeof(*htab));
+	if (!htab)
+		return;
+	if (!hcreate_r(nel, htab)) {
+		free(htab);
+		htab = NULL;
+		return;
+	}
 
 	for (q = query; q < (query + len);) {
 		/* Unescape each assignment */

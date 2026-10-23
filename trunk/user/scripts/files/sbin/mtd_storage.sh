@@ -35,11 +35,14 @@ func_stop_apps()
 {
 	killall -q rstats
 	[ $? -eq 0 ] && sleep 1
+	killall -q skipd
+	[ $? -eq 0 ] && sleep 1
 }
 
 func_start_apps()
 {
 	/sbin/rstats
+	[ -x /usr/sbin/skipd ] && /usr/sbin/skipd -d "$dir_storage/db"
 }
 
 func_load()
@@ -69,13 +72,13 @@ func_tarb()
 	cd - >>/dev/null
 	if [ ! -f "$tmp" ] ; then
 		logger -t "Storage" "Cannot create tarball file: $tmp"
-		exit 1
+		return 1
 	fi
 }
 
 func_save()
 {
-	local fsz
+	local fsz storage_hash
 
 	logger -t "Storage save" "Save storage files to MTD partition \"$mtd_part_dev\""
 	echo "Save storage files to MTD partition \"$mtd_part_dev\""
@@ -86,12 +89,13 @@ func_save()
 		rm -f $tmp
 		return 0
 	fi
-	md5sum $tmp > $hsh
+	storage_hash=`md5sum $tmp`
 	bzip2 -9 $tmp 2>/dev/null
 	fsz=`stat -c %s $tbz 2>/dev/null`
 	if [ -n "$fsz" ] && [ $fsz -ge 16 ] && [ $fsz -le $mtd_part_size ] ; then
 		mtd_write write $tbz $mtd_part_name
 		if [ $? -eq 0 ] ; then
+			echo "$storage_hash" > $hsh
 			echo "Done."
 			logger -t "Storage save" "Done."
 		else
@@ -180,7 +184,8 @@ func_erase()
 func_reset()
 {
 	rm -f $slk
-	rm -rf $dir_storage
+	rm -f $hsh
+	rm -rf $dir_storage || return 1
 	mkdir -p -m 755 $dir_storage
 }
 
@@ -710,12 +715,12 @@ save)
 	[ -f "$slk" ] && exit 1
 	func_get_mtd
 	func_mdir
-	func_tarb
+	func_tarb || exit 1
 	func_save
 	;;
 backup)
 	func_mdir
-	func_tarb
+	func_tarb || exit 1
 	func_backup
 	;;
 restore)
@@ -727,9 +732,13 @@ erase)
 	func_erase
 	;;
 reset)
+	func_get_mtd
 	func_stop_apps
-	func_reset
-	func_fill
+	if func_reset && func_fill && func_tarb ; then
+		func_save
+	else
+		result=1
+	fi
 	func_start_apps
 	;;
 fill)
