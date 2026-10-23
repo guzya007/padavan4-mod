@@ -84,9 +84,13 @@ function update_vpnc_status(vpnc_state){
 	showhide_div('col_vpnc_state', (vpnc_state == '1' && enabled && !is_wg) ? 1 : 0);
 	var state = document.getElementById('col_vpnc_wg_state');
 	if (state) {
-		state.style.display = enabled && is_wg && vpnc_state != '0' ? '' : 'none';
-		state.textContent = vpnc_state == '1' ? '<#Connected#>' : '<#AWG_Connecting#>';
-		state.className = vpnc_state == '1' ? 'label label-success' : 'label label-warning';
+		state.style.display = is_wg ? '' : 'none';
+		var value = !enabled ? 'disabled' : vpnc_state == '1' ? 'connected' :
+			vpnc_state == '2' ? 'connecting' : vpnc_state == '3' ? 'error' : 'stopped';
+		state.textContent = wg_state_label(value);
+		state.className = value == 'connected' ? 'label label-success' :
+			value == 'connecting' ? 'label label-warning' : value == 'error' ? 'label label-important' : 'label';
+		if (value != 'error') state.title = '';
 	}
 }
 

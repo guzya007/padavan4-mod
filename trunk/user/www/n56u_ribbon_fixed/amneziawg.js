@@ -95,7 +95,7 @@ function wg_copy(input) {
 }
 
 function wg_secret(input) {
-    wg_button(input, '<#CTL_show_pass#>', function() {
+    wg_button(input, '<#AWG_ShowKey#>', function() {
         input.type = input.type === 'password' ? 'text' : 'password';
     });
 }
@@ -267,7 +267,8 @@ function wg_init(role) {
     if (!login_safe()) $j(table).find('input, textarea, select, button').prop('disabled', true);
     var status = document.createElement('pre');
     status.id = 'wg_status';
-    status.textContent = '<#Nodata#>';
+    status.textContent = '<#AWG_Stopped#>';
+    status.setAttribute('aria-live', 'polite');
     table.parentNode.insertBefore(status, table.nextSibling);
     wgStatusTimer = setTimeout(wg_refresh_status, 1000);
 }
@@ -432,11 +433,48 @@ function wg_import(input) {
     try { reader.readAsText(input.files[0]); } catch (error) { failure('<#AWG_FileError#>'); }
 }
 
+function wg_state_label(state) {
+    var labels = {disabled: '<#AWG_Disabled#>', stopped: '<#AWG_Stopped#>',
+        connecting: '<#AWG_Connecting#>', connected: '<#Connected#>',
+        running: '<#AWG_Running#>', error: '<#AWG_StartError#>'};
+    return labels[state] || '<#AWG_StatusError#>';
+}
+
+function wg_error_label(stage) {
+    var labels = {config: '<#AWG_ErrorConfig#>', module: '<#AWG_ErrorModule#>',
+        interface: '<#AWG_ErrorInterface#>', address: '<#AWG_ErrorAddress#>',
+        setconf: '<#AWG_ErrorSetconf#>', link_up: '<#AWG_ErrorLinkUp#>',
+        sysctl: '<#AWG_ErrorSysctl#>', endpoint: '<#AWG_ErrorEndpoint#>',
+        routes: '<#AWG_ErrorRoutes#>', firewall: '<#AWG_ErrorFirewall#>', dns: '<#AWG_ErrorDNS#>'};
+    return labels[stage] || '';
+}
+
 function wg_refresh_status() {
     clearTimeout(wgStatusTimer);
     if (login_safe() && document.getElementById('wg_status') && document.form.elements[wgRole + '_type'].value === '3') {
-        $j.post('/apply.cgi', {action_mode: ' wg_action ', action: 'status', iface: wgRole === 'vpnc' ? 'wg0' : 'wg1'}, function(response) {
-            document.getElementById('wg_status').textContent = response || '<#Nodata#>';
+        $j.ajax({type: 'post', url: '/apply.cgi', dataType: 'json', timeout: 4000,
+            data: {action_mode: ' wg_action ', action: 'status_json', iface: wgRole === 'vpnc' ? 'wg0' : 'wg1'},
+            success: function(response) {
+                if (document.form.elements[wgRole + '_type'].value !== '3') return;
+                if (!response || typeof response.state !== 'string') {
+                    document.getElementById('wg_status').textContent = '<#AWG_StatusError#>'; return;
+                }
+                var text = wg_state_label(response.state), error = wg_error_label(response.error);
+                if (error) text += ': ' + error;
+                text += '\n<#AWG_Interface#>: ' + response.interface;
+                if (response.endpoint) text += '\n<#AWG_Endpoint#>: ' + response.endpoint;
+                if (response.handshake) text += '\n<#AWG_Handshake#>: ' + new Date(response.handshake * 1000).toLocaleString();
+                text += '\nRX: ' + (response.rx || 0) + ' B / TX: ' + (response.tx || 0) + ' B';
+                document.getElementById('wg_status').textContent = text;
+                if (wgRole === 'vpnc') {
+                    var states = {disabled: '0', stopped: '0', connecting: '2', connected: '1', error: '3'};
+                    update_vpnc_status(states[response.state] || '0');
+                    document.getElementById('col_vpnc_wg_state').title = error;
+                }
+            }, error: function() {
+                if (document.form.elements[wgRole + '_type'].value === '3')
+                    document.getElementById('wg_status').textContent = '<#AWG_StatusError#>';
+            }
         });
         if (wgRole === 'vpns' && window.location.hash === '#cli') wg_refresh_clients();
     }

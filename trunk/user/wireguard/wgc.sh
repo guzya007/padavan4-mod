@@ -20,6 +20,13 @@ if [ "$1" = watchdog ]; then flock -n 9; else flock 9; fi || exit 1
 
 is_started() { [ -f "$ACTIVE_STATE" ] && ip link show "$IF_NAME" >/dev/null 2>&1; }
 set_state() { nvram settmp "vpnc_state_t=$1"; }
+set_error()
+{
+    nvram settmp "vpnc_wg_error_t=$WG_STAGE"
+    set_state 3
+    # Never include configuration values or tool stderr (which can contain keys).
+    wg_log "client failed at stage: $WG_STAGE"
+}
 filter_ipv4()
 {
     awk '{ n=split($0,p,"/"); if(n>2 || (n==2 && (p[2] !~ /^[0-9]+$/ || p[2]>32))) next;
@@ -137,8 +144,16 @@ update_endpoint_rule()
 stop_wg()
 {
     # Other VPN lifecycles also call stop: do not touch their DNS or routing.
-    [ -f "$ACTIVE_STATE" ] || return 0
+    if [ ! -f "$ACTIVE_STATE" ]; then
+        # A failed native start may have no interface left to clean up.
+        if [ "$(nvram get vpnc_state_t)" = 3 ] && [ -n "$(nvram get vpnc_wg_error_t)" ]; then
+            set_state 0
+            nvram unset vpnc_wg_error_t
+        fi
+        return 0
+    fi
     set_state 0
+    nvram unset vpnc_wg_error_t
     stop_fw
     local family
     for family in 4 6; do
@@ -164,6 +179,9 @@ start_wg()
 {
     is_started && return 0
     local addr mtu endpoint port private public allowed psk keepalive family i dns
+    WG_STAGE=config
+    nvram unset vpnc_wg_error_t
+    set_state 2
     addr=$(nvram get vpnc_wg_if_addr | tr ', ' '\n\n')
     mtu=$(nvram get vpnc_wg_mtu); mtu=${mtu:-1280}
     endpoint=$(nvram get vpnc_wg_peer_endpoint)
@@ -181,15 +199,19 @@ start_wg()
     wg_key_valid "$private" && wg_key_valid "$public" || return 1
     [ -z "$psk" ] || wg_key_valid "$psk" || return 1
     wg_host_valid "$endpoint" && wg_number "$port" 1 65535 && wg_number "$mtu" 1280 1420 && wg_number "$keepalive" 0 65535 || return 1
+    WG_STAGE=module
     modprobe -q "$MODULE" || return 1
+    WG_STAGE=interface
     ip link add dev "$IF_NAME" type "$MODULE" || return 1
     : > "$ACTIVE_STATE" || { ip link del "$IF_NAME"; return 1; }
     ip link set dev "$IF_NAME" mtu "$mtu" || return 1
+    WG_STAGE=address
     for i in $addr; do
         family=4
-        case "$i" in *:*) family=6; sysctl -q "net.ipv6.conf.$IF_NAME.disable_ipv6=0" || return 1;; esac
+        case "$i" in *:*) family=6; sysctl -q -w "net.ipv6.conf.$IF_NAME.disable_ipv6=0" || return 1;; esac
         ip -$family addr add "$i" dev "$IF_NAME" || return 1
     done
+    WG_STAGE=config
     (
         echo '[Interface]'
         echo "PrivateKey = $private"
@@ -203,18 +225,25 @@ start_wg()
         echo "PersistentKeepalive = $keepalive"
     ) > "$CONF" || return 1
     # wg can include a malformed secret key in its diagnostics.
+    WG_STAGE=setconf
     "$WG" setconf "$IF_NAME" "$CONF" 2>/dev/null || return 1
     rm -f "$CONF"
+    WG_STAGE=link_up
     ip link set "$IF_NAME" up || return 1
-    sysctl -q net.ipv4.conf.all.src_valid_mark=1 || return 1
+    WG_STAGE=sysctl
+    sysctl -q -w net.ipv4.conf.all.src_valid_mark=1 || return 1
+    WG_STAGE=endpoint
     update_endpoint_rule || return 1
     # Preserve WAN routes and local admin access; only forwarded traffic is marked.
+    WG_STAGE=routes
     for family in 4 6; do
         ip -$family addr show dev "$IF_NAME" scope global | grep -q 'inet' || continue
         ip -$family rule add fwmark "$FWMARK" table "$TABLE" pref "$PREF_WG" || return 1
         ip -$family route replace default dev "$IF_NAME" table "$TABLE" || return 1
     done
+    WG_STAGE=firewall
     start_fw || return 1
+    WG_STAGE=dns
     if [ "$(nvram get vpnc_pdns)" != 0 ] && [ -n "$(nvram get vpnc_wg_if_dns)" ]; then
         dns=$(nvram get vpnc_wg_if_dns | tr ',' ' ')
         wg_single_line "$dns" || return 1
@@ -234,17 +263,29 @@ start_wg()
     return 0
 }
 
+start_client()
+{
+    start_wg && return 0
+    stop_wg
+    set_error
+    return 1
+}
+
 watchdog_wg()
 {
     [ "$(nvram get vpnc_enable)" = 1 ] && [ "$(nvram get vpnc_type)" = 3 ] || return 0
     if ! is_started; then
-        start_wg || { stop_wg; return 1; }
+        start_client || return 1
     fi
     local last now endpoint
-    update_endpoint_rule || return 1
+    WG_STAGE=endpoint
+    update_endpoint_rule || { set_error; return 1; }
+    WG_STAGE=firewall
+    start_fw || { set_error; return 1; }
+    nvram unset vpnc_wg_error_t
     last=$("$WG" show "$IF_NAME" latest-handshakes | awk '{print $2; exit}')
     now=$(date +%s)
-    if [ "${last:-0}" -gt 0 ] && [ "$((now - last))" -lt 300 ]; then
+    if [ "${last:-0}" -gt 0 ] && [ "$last" -le "$now" ] && [ "$((now - last))" -lt 300 ]; then
         [ "$(nvram get vpnc_state_t)" = 1 ] || wg_log 'client successfully connected'
         set_state 1
     else
@@ -253,7 +294,8 @@ watchdog_wg()
         endpoint=$(nvram get vpnc_wg_peer_endpoint)
         if "$WG" set "$IF_NAME" peer "$(nvram get vpnc_wg_peer_public)" \
             endpoint "$(wg_endpoint "$endpoint" "$(nvram get vpnc_wg_peer_port)")" 2>/dev/null; then
-            update_endpoint_rule || return 1
+            WG_STAGE=endpoint
+            update_endpoint_rule || { set_error; return 1; }
         fi
         ping -c 1 -W 1 -I "$IF_NAME" 255.255.255.255 >/dev/null 2>&1
     fi
@@ -262,11 +304,11 @@ watchdog_wg()
 }
 
 case "$1" in
-    start) start_wg || { stop_wg; wg_log 'client startup failed'; exit 1; };;
+    start) start_client || exit 1;;
     stop) stop_wg;;
-    restart) stop_wg; start_wg || { stop_wg; exit 1; };;
-    update) start_fw || exit 1; wg_post vpnc update;;
-    reload) stop_fw; start_fw || exit 1; wg_post vpnc reload;;
+    restart) stop_wg; start_client || exit 1;;
+    update) WG_STAGE=firewall; start_fw || { set_error; exit 1; }; wg_post vpnc update;;
+    reload) WG_STAGE=firewall; stop_fw; start_fw || { set_error; exit 1; }; wg_post vpnc reload;;
     watchdog) watchdog_wg;;
     *) echo "Usage: $0 {start|stop|restart|update|reload|watchdog}" >&2; exit 1;;
 esac

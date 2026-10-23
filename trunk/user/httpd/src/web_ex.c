@@ -3419,6 +3419,68 @@ static int wg_valid_key(const char *key)
 	return 1;
 }
 
+static int wg_status_json(webs_t wp, const char *iface)
+{
+	static const char *stages[] = {
+		"config", "module", "interface", "address", "setconf", "link_up",
+		"sysctl", "endpoint", "routes", "firewall", "dns", NULL
+	};
+	char command[128], line[512], endpoint[128] = "", name[32];
+	const char *state, *error = "", *role = !strcmp(iface, "wg0") ? "vpnc" : "vpns";
+	unsigned long long handshake = 0, rx = 0, tx = 0, a, b;
+	time_t now = time(NULL);
+	FILE *fp;
+	int i, enabled, running, client = !strcmp(role, "vpnc");
+	snprintf(name, sizeof(name), "%s_enable", role);
+	enabled = nvram_match(name, "1");
+	snprintf(name, sizeof(name), "%s_type", role);
+	enabled = enabled && nvram_match(name, "3");
+	/* A foreign legacy interface must not be reported as our native VPN. */
+	running = is_interface_up(iface) && access(client ? "/var/run/wgc.active" : "/var/run/wgs.active", F_OK) == 0;
+	if (enabled && running) {
+		/* Query only public status columns, not dump/showconf containing secrets. */
+		snprintf(command, sizeof(command), "/usr/bin/wg show %s latest-handshakes 2>/dev/null", iface);
+		fp = popen(command, "r");
+		if (fp) {
+			while (fgets(line, sizeof(line), fp))
+				if (sscanf(line, "%*s %llu", &a) == 1 && a > handshake)
+					handshake = a;
+			pclose(fp);
+		}
+		snprintf(command, sizeof(command), "/usr/bin/wg show %s transfer 2>/dev/null", iface);
+		fp = popen(command, "r");
+		if (fp) {
+			while (fgets(line, sizeof(line), fp))
+				if (sscanf(line, "%*s %llu %llu", &a, &b) == 2) { rx += a; tx += b; }
+			pclose(fp);
+		}
+		if (client) {
+			snprintf(command, sizeof(command), "/usr/bin/wg show %s endpoints 2>/dev/null", iface);
+			fp = popen(command, "r");
+			if (fp) {
+				if (fgets(line, sizeof(line), fp)) sscanf(line, "%*s %127s", endpoint);
+				pclose(fp);
+			}
+		}
+	}
+	if (client && enabled && nvram_match("vpnc_state_t", "3")) {
+		for (i = 0; stages[i]; i++)
+			if (nvram_match("vpnc_wg_error_t", stages[i])) { error = stages[i]; break; }
+		state = "error";
+	} else if (!enabled) state = "disabled";
+	else if (!running) state = "stopped";
+	else if (!client) state = "running";
+	else if (handshake && now >= 0 && handshake <= (unsigned long long)now &&
+		(unsigned long long)now - handshake < 300) state = "connected";
+	else state = "connecting";
+	websWrite(wp, "{\"state\":"); wg_json_string(wp, state);
+	websWrite(wp, ",\"error\":"); wg_json_string(wp, error);
+	websWrite(wp, ",\"interface\":"); wg_json_string(wp, iface);
+	websWrite(wp, ",\"endpoint\":"); wg_json_string(wp, endpoint);
+	websWrite(wp, ",\"handshake\":%llu,\"rx\":%llu,\"tx\":%llu}", handshake, rx, tx);
+	return 0;
+}
+
 static int wg_action(webs_t wp)
 {
 	char command[160], line[512];
@@ -3430,6 +3492,8 @@ static int wg_action(webs_t wp)
 		return 0;
 	if (!strcmp(action, "clients"))
 		return wg_clients(wp);
+	if (!strcmp(action, "status_json") && (!strcmp(iface, "wg0") || !strcmp(iface, "wg1")))
+		return wg_status_json(wp, iface);
 	if (!strcmp(action, "genkey") || !strcmp(action, "genpsk"))
 		snprintf(command, sizeof(command), "/usr/bin/wg %s", action);
 	else if (!strcmp(action, "pubkey") && wg_valid_key(key))
