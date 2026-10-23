@@ -223,11 +223,14 @@ jobs:
       - uses: softprops/action-gh-release@master
         if: ${{ inputs.release }}
         with:
-          tag_name: ${{ env.BUILD_DATE }}
-          name: ${{ env.BUILD_DATE }}
+          tag_name: ${{ env.BUILD_DATE }}-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ inputs.target }} — ${{ env.BUILD_DATE }} — build ${{ github.run_number }}.${{ github.run_attempt }}
           body: |
             Build Summary:
             - Date: ${{ env.BUILD_DATE }}
+            - Commit: ${{ github.sha }}
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
             - Target: ${{ inputs.target }}
             - Toolchain: ${{ inputs.toolchain }}
             - Nano: ${{ inputs.nanoversion }}
