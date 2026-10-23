@@ -717,6 +717,7 @@
 			{"vpnc_wg_peer_keepalive", "", NULL, EVM_RESTART_VPNCLI},
 			{"vpnc_wg_peer_allowedips", "", NULL, EVM_RESTART_VPNCLI},
 			{"vpnc_clients_allowed", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_clients", "", NULL, FALSE},
 			{"scripts.vpnc_remote_network.list", "File", NULL, EVM_RESTART_VPNCLI},
 			{"scripts.vpnc_exclude_network.list", "File", NULL, EVM_RESTART_VPNCLI},
 			{"scripts.vpnc_post_script.sh", "File", NULL, EVM_RESTART_VPNCLI|EVM_BLOCK_UNSAFE},

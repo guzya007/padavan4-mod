@@ -31,7 +31,7 @@ lists()
 {
     [ -f "$1" ] || return 0
     local raw valid
-    raw=$(sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//; /^$/d' "$1" | sort -u)
+    raw=$(sed 's/#.*//' "$1" | tr ',[:space:]' '\n' | sed '/^$/d' | sort -u)
     valid=$(printf '%s\n' "$raw" | filter_ipv4)
     [ "$raw" = "$valid" ] || return 1
     printf '%s\n' "$valid"
@@ -62,7 +62,7 @@ start_fw()
     is_started || return 0
     iptables -t mangle -nL vpnc_wireguard >/dev/null 2>&1 && return 0
     local i clients raw_clients default routes excluded
-    raw_clients=$(nvram get vpnc_clients_allowed | tr ', ' '\n\n' | sed '/^$/d' | sort -u)
+    raw_clients=$(nvram get vpnc_clients_allowed | tr ',[:space:]' '\n' | sed '/^$/d' | sort -u)
     clients=$(printf '%s\n' "$raw_clients" | filter_ipv4)
     [ "$raw_clients" = "$clients" ] || return 1
     default=$(nvram get vpnc_dgw)

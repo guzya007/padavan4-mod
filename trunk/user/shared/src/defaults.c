@@ -870,6 +870,7 @@ struct nvram_pair router_defaults[] = {
 	{ "vpnc_wg_peer_keepalive", "25" },
 	{ "vpnc_wg_peer_allowedips", "0.0.0.0/0" },
 	{ "vpnc_clients_allowed", "" },
+	{ "vpnc_clients", "" },
 #endif
 #if defined(APP_AMNEZIAWG)
 #define AWG_DEFAULT(name, value) \

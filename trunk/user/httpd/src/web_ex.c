@@ -729,7 +729,7 @@ static int wg_requires_safe_login(const char *name)
 {
 	return !strncmp(name, "vpnc_wg_", 8) || !strncmp(name, "vpns_wg_", 8) ||
 		!strncmp(name, "vpnc_awg_", 9) || !strncmp(name, "vpns_awg_", 9) ||
-		!strcmp(name, "vpnc_clients_allowed") ||
+		!strcmp(name, "vpnc_clients_allowed") || !strcmp(name, "vpnc_clients") ||
 		!strcmp(name, "scripts.vpnc_remote_network.list") || !strcmp(name, "scripts.vpnc_exclude_network.list") ||
 		!strcmp(name, "scripts.vpnc_post_script.sh") || !strcmp(name, "scripts.vpns_post_script.sh");
 }
@@ -3245,6 +3245,43 @@ static void wg_json_string(webs_t wp, const char *value)
 	websWrite(wp, "\"");
 }
 
+#if defined(APP_WIREGUARD)
+/* Network-map names are untrusted: return data, never inline JavaScript/HTML. */
+static void wg_lan_clients(webs_t wp)
+{
+	FILE *fp;
+	char line[512], *fields, *ip, *mac, *name;
+	int lock, first = 1, c;
+	websWrite(wp, "[");
+	lock = file_lock("networkmap");
+	fp = fopen("/tmp/static_ip.inf", "r");
+	if (fp) {
+		while (fgets(line, sizeof(line), fp)) {
+			if (!strchr(line, '\n') && !feof(fp)) {
+				while ((c = fgetc(fp)) != '\n' && c != EOF) { }
+				continue;
+			}
+			line[strcspn(line, "\r\n")] = 0;
+			fields = line;
+			ip = strsep(&fields, ",");
+			mac = strsep(&fields, ",");
+			name = strsep(&fields, ",");
+			if (!ip || !*ip || !mac || !name)
+				continue;
+			websWrite(wp, "%s[", first ? "" : ",");
+			wg_json_string(wp, ip);
+			websWrite(wp, ",");
+			wg_json_string(wp, name);
+			websWrite(wp, "]");
+			first = 0;
+		}
+		fclose(fp);
+	}
+	file_unlock(lock);
+	websWrite(wp, "]");
+}
+#endif
+
 static int ej_wireguard_config(int eid, webs_t wp, int argc, char **argv)
 {
 	websWrite(wp, "{");
@@ -3253,7 +3290,7 @@ static int ej_wireguard_config(int eid, webs_t wp, int argc, char **argv)
 		"wg_port", "wg_private", "wg_public", "wg_ext_addr", "wg_mtu",
 		"wg_if_addr", "wg_if_private", "wg_if_preshared", "wg_if_public", "wg_if_dns",
 		"wg_peer_public", "wg_peer_endpoint", "wg_peer_port", "wg_peer_keepalive", "wg_peer_allowedips",
-		"clients_allowed", NULL
+		"clients_allowed", "clients", NULL
 	};
 #if defined(APP_AMNEZIAWG)
 	static const char *awg_keys[] = {
@@ -3280,6 +3317,10 @@ static int ej_wireguard_config(int eid, webs_t wp, int argc, char **argv)
 			websWrite(wp, "%s\"%s\":", first ? "" : ",", name);
 			wg_json_string(wp, nvram_safe_get(name));
 			first = 0;
+		}
+		if (!strcmp(role, "vpnc")) {
+			websWrite(wp, ",\"lan_clients\":");
+			wg_lan_clients(wp);
 		}
 #if defined(APP_AMNEZIAWG)
 		for (i = 0; awg_keys[i]; i++) {
@@ -4452,6 +4493,12 @@ struct mime_handler mime_handlers[] = {
 	{ "client_function.js", "text/javascript", NULL, NULL, do_file, 0 }, // 2012.06 Eagle23
 	{ "disk_functions.js", "text/javascript", NULL, NULL, do_file, 0 }, // 2012.06 Eagle23
 	{ "md5.js", "text/javascript", NULL, NULL, do_file, 0 }, // 2012.06 Eagle23
+	{ "jquery.multiSelectDropdown.js", "text/javascript", NULL, NULL, do_file, 0 },
+
+#if defined(APP_WIREGUARD)
+	/* The native VPN importer needs these defaults; no generic JSON exposure. */
+	{ "amneziawg.json", "application/json", no_cache_IE, NULL, do_file, 1 },
+#endif
 
 	/* cached css  */
 	{ "**.css", "text/css", NULL, NULL, do_file, 0 }, // 2012.06 Eagle23

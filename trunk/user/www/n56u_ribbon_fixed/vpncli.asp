@@ -11,8 +11,10 @@
 <link rel="stylesheet" type="text/css" href="/bootstrap/css/bootstrap.min.css">
 <link rel="stylesheet" type="text/css" href="/bootstrap/css/main.css">
 <link rel="stylesheet" type="text/css" href="/bootstrap/css/engage.itoggle.css">
+<link rel="stylesheet" type="text/css" href="/jquery.multiSelectDropdown.css">
 
 <script type="text/javascript" src="/jquery.js"></script>
+<script type="text/javascript" src="/jquery.multiSelectDropdown.js"></script>
 <script type="text/javascript" src="/bootstrap/js/bootstrap.min.js"></script>
 <script type="text/javascript" src="/bootstrap/js/engage.itoggle.min.js"></script>
 <script type="text/javascript" src="/state.js"></script>
@@ -77,7 +79,15 @@ function initial(){
 
 function update_vpnc_status(vpnc_state){
 	this.vpnc_state_last = vpnc_state;
-	showhide_div('col_vpnc_state', (vpnc_state == '1' && document.form.vpnc_enable[0].checked) ? 1 : 0);
+	var enabled = document.form.vpnc_enable[0].checked;
+	var is_wg = document.form.vpnc_type.value === '3';
+	showhide_div('col_vpnc_state', (vpnc_state == '1' && enabled && !is_wg) ? 1 : 0);
+	var state = document.getElementById('col_vpnc_wg_state');
+	if (state) {
+		state.style.display = enabled && is_wg && vpnc_state != '0' ? '' : 'none';
+		state.textContent = vpnc_state == '1' ? '<#Connected#>' : '<#AWG_Connecting#>';
+		state.className = vpnc_state == '1' ? 'label label-success' : 'label label-warning';
+	}
 }
 
 function applyRule(){
@@ -179,6 +189,7 @@ function change_vpnc_enabled() {
 		showhide_div('tab_vpnc_ssl', 0);
 		showhide_div('tbl_vpnc_route', 0);
 		textarea_ovpn_enabled(0);
+		update_vpnc_status(vpnc_state_last);
 	}else{
 		change_vpnc_type();
 	}
@@ -190,6 +201,11 @@ function change_vpnc_type() {
 	var is_wg = (mode == "3") ? 1 : 0;
 	wg_toggle('vpnc', document.form.vpnc_enable[0].checked, is_wg);
 	showhide_div('vpnc_peer_row', !is_wg);
+	showhide_div('row_vpnc_server_script', !is_wg);
+	inputCtrl(document.form['scripts.vpnc_server_script.sh'], !is_wg);
+	document.getElementById('vpnc_use_dns').textContent = is_wg ? '<#AWG_UseDNS#>' : '<#VPNC_PDNS#>';
+	document.getElementById('vpnc_use_dgw').textContent = is_wg ? '<#AWG_RouteAll#>' : '<#VPNC_DGW#>';
+	showhide_div('vpnc_wg_route_hint', is_wg);
 
 	showhide_div('row_vpnc_auth', !is_ov && !is_wg);
 	showhide_div('row_vpnc_mppe', !is_ov && !is_wg);
@@ -225,7 +241,7 @@ function change_vpnc_type() {
 		showhide_div('row_vpnc_pass', !is_wg);
 	}
 
-	showhide_div('col_vpnc_state', (vpnc_state_last == '1') ? 1 : 0);
+	update_vpnc_status(vpnc_state_last);
 }
 
 function change_vpnc_ov_auth() {
@@ -587,7 +603,7 @@ function getHash(){
                                     </td>
                                 </tr>
                                 <tr>
-                                    <th><#VPNC_PDNS#></th>
+                                    <th id="vpnc_use_dns"><#VPNC_PDNS#></th>
                                     <td>
                                         <select name="vpnc_pdns" class="input">
                                             <option value="0" <% nvram_match_x("", "vpnc_pdns", "0","selected"); %>><#checkbox_No#></option>
@@ -597,15 +613,16 @@ function getHash(){
                                     </td>
                                 </tr>
                                 <tr>
-                                    <th><#VPNC_DGW#></th>
+                                    <th id="vpnc_use_dgw"><#VPNC_DGW#></th>
                                     <td>
                                         <select name="vpnc_dgw" class="input">
                                             <option value="0" <% nvram_match_x("", "vpnc_dgw", "0","selected"); %>><#checkbox_No#></option>
                                             <option value="1" <% nvram_match_x("", "vpnc_dgw", "1","selected"); %>><#checkbox_Yes#></option>
                                         </select>
+                                        <div id="vpnc_wg_route_hint" class="help-block" style="display:none"><#AWG_RouteHint#></div>
                                     </td>
                                 </tr>
-                                <tr>
+                                <tr id="row_vpnc_server_script">
                                     <td colspan="2" style="padding-bottom: 0px;">
                                         <a href="javascript:spoiler_toggle('spoiler_script')"><span><#RunPostVPNC#></span></a>
                                         <div id="spoiler_script" style="display:none;">

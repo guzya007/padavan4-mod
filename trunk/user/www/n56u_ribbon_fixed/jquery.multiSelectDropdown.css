@@ -1,0 +1,28 @@
+/* Client dropdown adapted from nilabsent/padavan-ng (nil, MIT licence). */
+.msd-dropdown { position: relative; display: inline-block; font-size: 13px; }
+.msd-header {
+  display: flex; align-items: center; border: 1px solid #ccc;
+  border-radius: 3px; background: #fff; box-sizing: border-box;
+}
+.msd-header .msd-input {
+  flex: 1; min-width: 0; border: none; outline: none; font-size: 13px;
+  padding: 0; margin: 4px; background: transparent; line-height: normal;
+  text-overflow: ellipsis; box-sizing: border-box; box-shadow: none;
+}
+.msd-header .msd-input::placeholder { color: #555; }
+.msd-chevron { width: 24px; border: none; background: transparent; color: #555; }
+.msd-content {
+  position: absolute; top: calc(100% + 1px); left: 0; right: 0; background: #fff;
+  border: 1px solid #ccc; border-radius: 3px; box-shadow: 0 5px 10px rgba(0,0,0,.2);
+  z-index: 999; display: none; max-height: 250px; overflow-y: auto;
+}
+.msd-dropdown.msd-show .msd-content { display: block; }
+.msd-item { display: flex; align-items: center; }
+.msd-item:hover { background: #d9edf7; }
+.msd-label { display: flex; align-items: center; flex: 1; gap: 6px; margin: 0; padding: 6px 8px; }
+.msd-title { margin-left: auto; font-size: 12px; color: #888; overflow-wrap: anywhere; }
+.msd-label input[type=checkbox] { cursor: pointer; margin: 3px 0; }
+.msd-delete { border: none; background: transparent; color: #888; padding: 0 8px; }
+.msd-delete:hover { color: #c00; }
+.msd-add-suggestion { padding: 6px 8px; background: #f0f0f0; cursor: pointer; font-style: italic; border-bottom: 1px dashed #ccc; }
+.msd-add-suggestion:hover { background: #e3e3e3; }
