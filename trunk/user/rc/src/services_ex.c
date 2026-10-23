@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
@@ -239,6 +240,33 @@ fill_dnsmasq_servers(void)
 	}
 
 	/* add DNS servers (via specific domain) for static VPN client */
+#if defined(APP_WIREGUARD)
+	if (is_enabled_wireguard_client()) {
+		const char *host = nvram_safe_get("vpnc_wg_peer_endpoint");
+		const char *p;
+		int valid = (*host && !is_valid_ipv4(host));
+		for (p = host; *p; p++)
+			if (!isalnum((unsigned char)*p) && *p != '.' && *p != '-' && *p != '_')
+				valid = 0;
+		/* Resolve the endpoint via WAN even when VPN-only DNS is unreachable. */
+		if (valid) {
+			int i;
+			if (get_wan_dns_static()) {
+				for (i = 1; i <= 3; i++) {
+					char name[16];
+					snprintf(name, sizeof(name), "wan_dns%d_x", i);
+					wan_dns = nvram_safe_get(name);
+					if (is_valid_ipv4(wan_dns)) fprintf(fp, "server=/%s/%s\n", host, wan_dns);
+				}
+			} else {
+				wan_dns = get_wan_unit_value(0, "dns");
+				if (strlen(wan_dns) < 7) wan_dns = nvram_safe_get("wanx_dns");
+				foreach(word, wan_dns, next)
+					if (is_valid_ipv4(word)) fprintf(fp, "server=/%s/%s\n", host, word);
+			}
+		}
+	}
+#endif
 	if (nvram_get_int("vpnc_pdns") > 0) {
 		wan_dom = nvram_safe_get("vpnc_dom_t");
 		wan_dns = nvram_safe_get("vpnc_dns_t");
@@ -1199,4 +1227,3 @@ manual_ddns_hostname_check(void)
 {
 	nvram_set_temp("ddns_return_code", "inadyn_unsupport");
 }
-

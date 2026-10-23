@@ -19,6 +19,8 @@
 <script type="text/javascript" src="/general.js"></script>
 <script type="text/javascript" src="/itoggle.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
+<script type="text/javascript" src="/amneziawg.js"></script>
+<script type="text/javascript" src="/qrcode.min.js"></script>
 <script>
 var $j = jQuery.noConflict();
 
@@ -48,6 +50,7 @@ var ACLList = [<% get_nvram_list("LANHostConfig", "VPNSACLList", "vpns_pass_x");
 <% login_state_hook(); %>
 <% openssl_util_hook(); %>
 <% openvpn_srv_cert_hook(); %>
+var wgSettings = <% wireguard_config("vpns"); %>;
 
 var vpn_clients = [];
 
@@ -55,6 +58,7 @@ function initial(){
 	show_banner(0);
 	show_menu(3, -1, 0);
 	show_footer();
+	wg_init('vpns');
 
 	if (!found_app_ovpn())
 		document.form.vpns_type.remove(2);
@@ -161,6 +165,8 @@ function valid_rlan_subnet(oa, om){
 }
 
 function validForm(){
+	if (document.form.vpns_enable[0].checked && document.form.vpns_type.value === '3')
+		return wg_valid('vpns') && valid_vpn_subnet(document.form.vpns_vnet);
 	if (!document.form.vpns_enable[0].checked)
 		return true;
 
@@ -243,6 +249,7 @@ function textarea_ovpn_enabled(v){
 }
 
 function change_vpns_enabled(){
+	wg_toggle('vpns', document.form.vpns_enable[0].checked, document.form.vpns_type.value === '3');
 	var v = document.form.vpns_enable[0].checked;
 
 	showhide_div('tab_vpns_cli', v);
@@ -261,21 +268,23 @@ function change_vpns_enabled(){
 function change_vpns_type(){
 	var mode = document.form.vpns_type.value;
 	var is_ov = (mode == "2") ? 1 : 0;
+	var is_wg = (mode == "3") ? 1 : 0;
+	wg_toggle('vpns', document.form.vpns_enable[0].checked, is_wg);
 
 	var o = document.form.vpns_vuse;
 	free_options(o);
-	if (!is_ov)
+	if (!is_ov && !is_wg)
 		add_option(o, "<#VPNS_VUse_Item0#>", "0", (vpn_ipvuse_x == '0') ? 1 : 0);
 	add_option(o, "<#VPNS_VUse_Item1#>", "1", (vpn_ipvuse_x == '1') ? 1 : 0);
 	add_option(o, "<#VPNS_VUse_Item2#>", "2", (vpn_ipvuse_x == '2') ? 1 : 0);
 
 	showhide_div('tab_vpns_ssl', is_ov);
 
-	showhide_div('row_vpns_auth', !is_ov);
-	showhide_div('row_vpns_mppe', !is_ov);
-	showhide_div('row_vpns_mtu', !is_ov);
-	showhide_div('row_vpns_mru', !is_ov);
-	showhide_div('row_vpns_script', 1);
+	showhide_div('row_vpns_auth', !is_ov && !is_wg);
+	showhide_div('row_vpns_mppe', !is_ov && !is_wg);
+	showhide_div('row_vpns_mtu', !is_ov && !is_wg);
+	showhide_div('row_vpns_mru', !is_ov && !is_wg);
+	showhide_div('row_vpns_script', !is_wg);
 
 	showhide_div('row_vpns_ov_mode', is_ov);
 	showhide_div('row_vpns_ov_prot', is_ov);
@@ -290,6 +299,9 @@ function change_vpns_type(){
 	showhide_div('row_vpns_ov_conf', is_ov);
 
 	showhide_div('certs_hint', is_ov && !openvpn_srv_cert_found());
+	showhide_div('row_vpns_exp', 0);
+	document.form.vpns_pass_x_0.maxLength = is_wg ? 44 : 32;
+	document.form.vpns_pass_x_0.type = is_wg ? 'password' : 'text';
 
 	textarea_ovpn_enabled(is_ov);
 
@@ -314,8 +326,8 @@ function change_vpns_type(){
 	}else{
 		showhide_div('tab_vpns_acl', 1);
 		
-		$("col_pass").innerHTML = "<#ISP_Authentication_pass#>";
-		$("div_acl_info").innerHTML = "<#VPNS_Accnt_Info1#></br><#VPNS_Accnt_Info4#>";
+		$("col_pass").innerHTML = is_wg ? "<#AWG_Private#>" : "<#ISP_Authentication_pass#>";
+		$("div_acl_info").innerHTML = is_wg ? "<#AWG_AccountHint#>" : "<#VPNS_Accnt_Info1#></br><#VPNS_Accnt_Info4#>";
 		inputCtrl(document.form.vpns_pass_x_0, 1);
 		
 		showhide_div('row_vpns_vuse', 1);
@@ -375,8 +387,15 @@ function change_vpns_vnet_enable(){
 	var vnet_show;
 	var rnet_show;
 	var is_openvpn = (document.form.vpns_type.value == "2") ? 1 : 0;
+	var is_wg = (document.form.vpns_type.value == "3") ? 1 : 0;
 
-	if (is_openvpn){
+	if (is_wg){
+		vnet_show = rnet_show = 1;
+		showhide_div('tab_vpns_acl', 1);
+		showhide_div('row_vpns_vuse', 0);
+		showhide_div('row_vpns_cast', 0);
+		showhide_div('row_vpns_actl', fw_enable_x == '1');
+	}else if (is_openvpn){
 		vnet_show = (document.form.vpns_ov_mode.value == "1") ? 1 : 0;
 		rnet_show = vnet_show;
 		showhide_div('tab_vpns_acl', vnet_show);
@@ -396,8 +415,9 @@ function change_vpns_vnet_enable(){
 	inputCtrl(document.form.vpns_rnet_x_0, rnet_show);
 	inputCtrl(document.form.vpns_rmsk_x_0, rnet_show);
 
-	show_pool_controls(vnet_show, is_openvpn);
-	showACLList(vnet_show, rnet_show, is_openvpn);
+	show_pool_controls(vnet_show, is_openvpn || is_wg);
+	showACLList(vnet_show, rnet_show, is_openvpn || is_wg);
+	wg_acl_exports();
 }
 
 function change_vpns_ov_atls() {
@@ -423,6 +443,10 @@ function markGroupACL(o, c, b) {
 	var acl_addr;
 	document.form.group_id.value = "VPNSACLList";
 	if(b == " Add "){
+		if (document.form.vpns_type.value === '3' && !/^[A-Za-z0-9+/]{43}=$/.test(document.form.vpns_pass_x_0.value)) {
+			alert('<#AWG_InvalidKey#>');
+			return false;
+		}
 		if (document.form.vpns_num_x_0.value >= c){
 			alert("<#JS_itemlimit1#> " + c + " <#JS_itemlimit2#>");
 			return false;
@@ -435,7 +459,7 @@ function markGroupACL(o, c, b) {
 			return false;
 		}
 		
-		if (document.form.vpns_type.value == "2" && document.form.vpns_addr_x_0.value == "") {
+		if ((document.form.vpns_type.value == "2" || document.form.vpns_type.value == "3") && document.form.vpns_addr_x_0.value == "") {
 			alert("<#JS_fieldblank#>");
 			document.form.vpns_addr_x_0.focus();
 			document.form.vpns_addr_x_0.select();
@@ -662,10 +686,15 @@ function showTab(curHash){
 	if (obj == null || obj.style.display == 'none')
 		curHash = '#cfg';
 	if(curHash == ('#'+arrHashes[3])){
+		if (document.form.vpns_type.value === '3') {
+			wg_refresh_clients();
+		} else {
+		wg_restore_client_headers();
 		$j.get('/vpn_clients.asp', function(response){
 			vpn_clients = eval(response);
 			createBodyTable();
 		});
+		}
 	}
 	for(var i = 0; i < arrHashes.length; i++){
 		if(curHash == ('#'+arrHashes[i])){
@@ -806,6 +835,7 @@ function getHash(){
                                             <option value="0" <% nvram_match_x("", "vpns_type", "0","selected"); %>>PPTP</option>
                                             <option value="1" <% nvram_match_x("", "vpns_type", "1","selected"); %>>L2TP (w/o IPSec)</option>
                                             <option value="2" <% nvram_match_x("", "vpns_type", "2","selected"); %>>OpenVPN</option>
+                                            <option value="3" <% nvram_match_x("", "vpns_type", "3","selected"); %>>AmneziaWG</option>
                                         </select>
                                         <span id="certs_hint" style="display:none" class="label label-warning"><#OVPN_Hint#></span>
                                     </td>

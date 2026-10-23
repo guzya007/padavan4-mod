@@ -24,6 +24,9 @@ romfs:
 	echo "Make www romfs"
 	rm -Rf $(ROMFS_DIR)/www
 	cp -R $(WEBUI_NAME) $(ROMFS_DIR)/www
+ifneq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_WIREGUARD) $(CONFIG_FIRMWARE_INCLUDE_AMNEZIAWG)),)
+	cp ../wireguard/amneziawg.json $(ROMFS_DIR)/www/amneziawg.json
+endif
 	rm -f $(ROMFS_DIR)/www/httpd_check.htm
 	echo "ASUSTeK" > $(ROMFS_DIR)/www/httpd_check.htm
 	cd $(ROMFS_DIR)/www && ln -sf /opt/share/www/custom custom
@@ -190,10 +193,10 @@ endif
 ifneq ($(CONFIG_FIRMWARE_INCLUDE_SMARTDNS),y)
 	rm -f $(INSTALLDIR)/www/Advanced_smartdns.asp
 endif
-ifneq ($(CONFIG_FIRMWARE_INCLUDE_SOFTETHERVPN_SERVER),y)
+ifeq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_SOFTETHERVPN_SERVER) $(CONFIG_FIRMWARE_INCLUDE_WIREGUARD) $(CONFIG_FIRMWARE_INCLUDE_AMNEZIAWG)),)
 	rm -f $(INSTALLDIR)/www/vpnsrv.asp
 endif
-ifneq ($(CONFIG_FIRMWARE_INCLUDE_SOFTETHERVPN_CLIENT),y)
+ifeq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_SOFTETHERVPN_CLIENT) $(CONFIG_FIRMWARE_INCLUDE_WIREGUARD) $(CONFIG_FIRMWARE_INCLUDE_AMNEZIAWG)),)
 	rm -f $(INSTALLDIR)/www/vpn_clients.asp
 	rm -f $(INSTALLDIR)/www/vpncli.asp
 endif

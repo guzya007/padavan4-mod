@@ -724,6 +724,17 @@ ej_dump(int eid, webs_t wp, int argc, char **argv)
 	return ret;
 }
 
+#if defined(APP_WIREGUARD)
+static int wg_requires_safe_login(const char *name)
+{
+	return !strncmp(name, "vpnc_wg_", 8) || !strncmp(name, "vpns_wg_", 8) ||
+		!strncmp(name, "vpnc_awg_", 9) || !strncmp(name, "vpns_awg_", 9) ||
+		!strcmp(name, "vpnc_clients_allowed") ||
+		!strcmp(name, "scripts.vpnc_remote_network.list") || !strcmp(name, "scripts.vpnc_exclude_network.list") ||
+		!strcmp(name, "scripts.vpnc_post_script.sh") || !strcmp(name, "scripts.vpns_post_script.sh");
+}
+#endif
+
 static void
 validate_cgi(webs_t wp, int sid)
 {
@@ -734,6 +745,10 @@ validate_cgi(webs_t wp, int sid)
 	/* Validate and set variables in table order */
 	for (v = GetVariables(sid); v->name != NULL; v++) {
 		snprintf(name, sizeof(name), "%s", v->name);
+#if defined(APP_WIREGUARD)
+		if (!get_login_safe() && wg_requires_safe_login(name))
+			continue;
+#endif
 		if ((value = websGetVar(wp, name, NULL))) {
 			if (strcmp(v->longname, "Group") && strcmp(v->longname, "File"))
 				nvram_set(v->name, value);
@@ -878,6 +893,11 @@ validate_asp_apply(webs_t wp, int sid)
 		value = websGetVar(wp, name, NULL);
 		if (!value)
 			continue;
+#if defined(APP_WIREGUARD)
+		/* Explicit guard: this tree's legacy EVM_BLOCK_UNSAFE exceeds u64. */
+		if (!get_login_safe() && wg_requires_safe_login(name))
+			continue;
+#endif
 		
 		if (!get_login_safe() && (v->event_mask & EVM_BLOCK_UNSAFE))
 			continue;
@@ -2586,7 +2606,7 @@ ej_firmware_caps_hook(int eid, webs_t wp, int argc, char **argv)
 #else
 	int found_app_xupnpd = 0;
 #endif
-#if defined(APP_WIREGUARD)
+#if defined(APP_WIREGUARD) && !defined(APP_AMNEZIAWG)
 	int found_app_wireguard = 1;
 #else
 	int found_app_wireguard = 0;
@@ -2824,6 +2844,11 @@ ej_firmware_caps_hook(int eid, webs_t wp, int argc, char **argv)
 		found_app_adguardhome
 	);
 
+#if defined(APP_AMNEZIAWG)
+	websWrite(wp, "function found_app_wg() { return 1;}\nfunction found_app_awg() { return 1;}\n");
+#else
+	websWrite(wp, "function found_app_wg() { return found_app_wireguard();}\nfunction found_app_awg() { return 0;}\n");
+#endif
 	websWrite(wp,
 		"function support_ipv6() { return %d;}\n"
 		"function support_ipv6_ppe() { return %d;}\n"
@@ -3200,6 +3225,189 @@ static int ej_get_flash_time(int eid, webs_t wp, int argc, char **argv)
 	return 0;
 }
 
+/* JSON strings used by native VPN UI: never interpolate NVRAM into JS code. */
+static void wg_json_char(webs_t wp, unsigned char c)
+{
+	if (c == '"' || c == '\\')
+		websWrite(wp, "\\%c", c);
+	else if (c < 0x20 || c == '<' || c == '>' || c == '&')
+		websWrite(wp, "\\u%04x", c);
+	else
+		websWrite(wp, "%c", c);
+}
+
+static void wg_json_string(webs_t wp, const char *value)
+{
+	const unsigned char *p;
+	websWrite(wp, "\"");
+	for (p = (const unsigned char *)value; *p; p++)
+		wg_json_char(wp, *p);
+	websWrite(wp, "\"");
+}
+
+static int ej_wireguard_config(int eid, webs_t wp, int argc, char **argv)
+{
+	websWrite(wp, "{");
+#if defined(APP_WIREGUARD)
+	static const char *wg_keys[] = {
+		"wg_port", "wg_private", "wg_public", "wg_ext_addr", "wg_mtu",
+		"wg_if_addr", "wg_if_private", "wg_if_preshared", "wg_if_public", "wg_if_dns",
+		"wg_peer_public", "wg_peer_endpoint", "wg_peer_port", "wg_peer_keepalive", "wg_peer_allowedips",
+		"clients_allowed", NULL
+	};
+#if defined(APP_AMNEZIAWG)
+	static const char *awg_keys[] = {
+		"jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5", "h1", "h2", "h3", "h4",
+		"s1", "s2", "s3", "s4", "contentpaddingaddition", "headerprotectionkey",
+		"rekeyaftertime", "rekeytimeout", "rejectaftertime", "keepalivetimeout",
+		"maxhandshakeattempts", "randomtrailers", "disablecookies", NULL
+	};
+#endif
+	static const char *wg_files[] = {
+		"remote_network.list", "exclude_network.list", "post_script.sh", NULL
+	};
+	char name[96];
+	char path[160];
+	const char *role;
+	FILE *fp;
+	char *contents;
+	struct stat st;
+	int i, first = 1;
+	if (argc > 0 && get_login_safe() && (!strcmp(argv[0], "vpnc") || !strcmp(argv[0], "vpns"))) {
+		role = argv[0];
+		for (i = 0; wg_keys[i]; i++) {
+			snprintf(name, sizeof(name), "%s_%s", role, wg_keys[i]);
+			websWrite(wp, "%s\"%s\":", first ? "" : ",", name);
+			wg_json_string(wp, nvram_safe_get(name));
+			first = 0;
+		}
+#if defined(APP_AMNEZIAWG)
+		for (i = 0; awg_keys[i]; i++) {
+			snprintf(name, sizeof(name), "%s_awg_%s", role, awg_keys[i]);
+			websWrite(wp, ",\"%s\":", name);
+			wg_json_string(wp, nvram_safe_get(name));
+		}
+#endif
+		for (i = 0; wg_files[i]; i++) {
+			if (!strcmp(role, "vpns") && i < 2)
+				continue;
+			snprintf(name, sizeof(name), "scripts.%s_%s", role, wg_files[i]);
+			snprintf(path, sizeof(path), "%s/%s_%s", STORAGE_SCRIPTS_DIR, role, wg_files[i]);
+			fp = fopen(path, "r");
+			/* Unreadable files must not become editable empty fields. */
+			if (!fp && errno != ENOENT)
+				continue;
+			contents = NULL;
+			if (fp) {
+				if (fstat(fileno(fp), &st) || !S_ISREG(st.st_mode) || st.st_size < 0 || st.st_size > 1048576) {
+					fclose(fp); continue;
+				}
+				contents = malloc(st.st_size + 1);
+				if (!contents) { fclose(fp); continue; }
+				if (fread(contents, 1, st.st_size, fp) != (size_t)st.st_size || ferror(fp) || memchr(contents, 0, st.st_size)) {
+					free(contents); fclose(fp); continue;
+				}
+				contents[st.st_size] = 0;
+				fclose(fp);
+			}
+			websWrite(wp, ",\"%s\":", name);
+			wg_json_string(wp, contents ? contents : "");
+			free(contents);
+		}
+	}
+#endif
+	websWrite(wp, "}");
+	return 0;
+}
+
+#if defined(APP_WIREGUARD)
+static int wg_clients(webs_t wp)
+{
+	FILE *fp;
+	char line[768], allowed[512], endpoint[128], addr[32], name[80];
+	unsigned long long handshake, rx, tx;
+	int first = 1, i, count = nvram_safe_get_int("vpns_num_x", 0, 0, 50);
+	websWrite(wp, "[");
+	fp = popen("/usr/bin/wgs.sh list 2>/dev/null", "r");
+	if (fp) {
+		while (fgets(line, sizeof(line), fp)) {
+			char *ip, *end;
+			if (sscanf(line, "%511s %127s %llu %llu %llu", allowed, endpoint, &handshake, &rx, &tx) != 5)
+				continue;
+			name[0] = addr[0] = 0;
+			for (ip = strtok(allowed, ","); ip; ip = strtok(NULL, ",")) {
+				end = strstr(ip, "/32");
+				if (!end || end[3])
+					continue;
+				*end = 0;
+				for (i = 0; i < count; i++) {
+					char expected[32], net[32], *dot;
+					snprintf(net, sizeof(net), "%s", nvram_safe_get("vpns_vnet"));
+					dot = strrchr(net, '.');
+					if (!dot) continue;
+					*dot = 0;
+					snprintf(expected, sizeof(expected), "%s.%s", net, nvram_get_list_x("vpns_addr_x", i));
+					if (strcmp(ip, expected)) continue;
+					snprintf(name, sizeof(name), "%s", nvram_get_list_x("vpns_user_x", i));
+					snprintf(addr, sizeof(addr), "%s", expected);
+					break;
+				}
+				if (*addr) break;
+			}
+			websWrite(wp, "%s[", first ? "" : ",");
+			wg_json_string(wp, addr);
+			websWrite(wp, ","); wg_json_string(wp, endpoint);
+			websWrite(wp, ","); wg_json_string(wp, name);
+			websWrite(wp, ",%llu,%llu,%llu]", handshake, rx, tx);
+			first = 0;
+		}
+		pclose(fp);
+	}
+	websWrite(wp, "]");
+	return 0;
+}
+
+static int wg_valid_key(const char *key)
+{
+	int i;
+	if (strlen(key) != 44 || key[43] != '=')
+		return 0;
+	for (i = 0; i < 43; i++)
+		if (!isalnum((unsigned char)key[i]) && key[i] != '+' && key[i] != '/')
+			return 0;
+	return 1;
+}
+
+static int wg_action(webs_t wp)
+{
+	char command[160], line[512];
+	char *action = websGetVar(wp, "action", "");
+	char *key = websGetVar(wp, "privkey", "");
+	char *iface = websGetVar(wp, "iface", "wg0");
+	FILE *fp;
+	if (!get_login_safe())
+		return 0;
+	if (!strcmp(action, "clients"))
+		return wg_clients(wp);
+	if (!strcmp(action, "genkey") || !strcmp(action, "genpsk"))
+		snprintf(command, sizeof(command), "/usr/bin/wg %s", action);
+	else if (!strcmp(action, "pubkey") && wg_valid_key(key))
+		/* Strict base64 validation above excludes all shell metacharacters. */
+		snprintf(command, sizeof(command), "printf '%%s\\n' '%s' | /usr/bin/wg pubkey", key);
+	else if (!strcmp(action, "status") && (!strcmp(iface, "wg0") || !strcmp(iface, "wg1")))
+		snprintf(command, sizeof(command), "/usr/bin/wg show %s 2>/dev/null", iface);
+	else
+		return 0;
+	fp = popen(command, "r");
+	if (!fp)
+		return 0;
+	while (fgets(line, sizeof(line), fp))
+		websWrite(wp, "%s", line);
+	pclose(fp);
+	return 0;
+}
+#endif
+
 static int ej_get_vpns_client(int eid, webs_t wp, int argc, char **argv)
 {
 	FILE *fp;
@@ -3535,6 +3743,25 @@ apply_cgi(const char *url, webs_t wp)
 		websRedirect(wp, current_url);
 		return 0;
 	}
+#if defined(APP_WIREGUARD)
+	else if (!strcmp(value, " wg_action "))
+		return wg_action(wp);
+	else if (!strcmp(value, " ExportWGConf ")) {
+		char *name = websGetVar(wp, "common_name", "");
+		char path[] = "/tmp/client-wg.XXXXXX";
+		int fd;
+		if (!get_login_safe() || !*name)
+			return 0;
+		fd = mkstemp(path);
+		if (fd < 0)
+			return 0;
+		close(fd);
+		if (eval("/usr/bin/wgs.sh", "export", name, path) == 0)
+			do_file(path, wp);
+		unlink(path);
+		return 0;
+	}
+#endif
 	else if (!strcmp(value, " ClearLog "))
 	{
 		// current only syslog implement this button
@@ -3887,6 +4114,11 @@ static int
 apply_cgi_group(webs_t wp, int sid, struct variable *var, const char *groupName, int flag)
 {
 	struct variable *v;
+#if defined(APP_WIREGUARD)
+	/* Native WG/AWG ACL entries contain client private keys, not passwords. */
+	if (!get_login_safe() && !strcmp(groupName, "VPNSACLList") && nvram_match("vpns_type", "3"))
+		return 0;
+#endif
 
 	if (var != NULL) {
 		v = var;
@@ -4477,6 +4709,7 @@ ej_available_disk_names_and_sizes(int eid, webs_t wp, int argc, char **argv)
 struct ej_handler ej_handlers[] =
 {
 	{ "nvram_get_x", ej_nvram_get_x},
+	{ "wireguard_config", ej_wireguard_config},
 	{ "nvram_get_list_x", ej_nvram_get_list_x},
 	{ "nvram_get_buf_x", ej_nvram_get_buf_x},
 	{ "nvram_get_table_x", ej_nvram_get_table_x},

@@ -169,7 +169,7 @@
 
 	struct variable variables_LANHostConfig_VPNSACLList[] = {
 			{"vpns_user_x", "32", NULL, FALSE},
-			{"vpns_pass_x", "32", NULL, FALSE},
+			{"vpns_pass_x", "44", NULL, FALSE},
 			{"vpns_addr_x", "3", NULL, FALSE},
 			{"vpns_rnet_x", "20", NULL, FALSE},
 			{"vpns_rmsk_x", "20", NULL, FALSE},
@@ -699,6 +699,44 @@
 			{"vpnc_dgw", "", NULL, EVM_RESTART_VPNCLI},
 			{"vpnc_rnet", "", NULL, EVM_RESTART_VPNCLI},
 			{"vpnc_rmsk", "", NULL, EVM_RESTART_VPNCLI},
+#if defined(APP_WIREGUARD)
+			{"vpns_wg_port", "", NULL, EVM_RESTART_VPNSVR},
+			{"vpns_wg_private", "", NULL, EVM_RESTART_VPNSVR|EVM_BLOCK_UNSAFE},
+			{"vpns_wg_public", "", NULL, EVM_RESTART_VPNSVR},
+			{"vpns_wg_ext_addr", "", NULL, EVM_RESTART_VPNSVR},
+			{"vpns_wg_mtu", "", NULL, EVM_RESTART_VPNSVR},
+			{"vpnc_wg_mtu", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_wg_if_addr", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_wg_if_private", "", NULL, EVM_RESTART_VPNCLI|EVM_BLOCK_UNSAFE},
+			{"vpnc_wg_if_preshared", "", NULL, EVM_RESTART_VPNCLI|EVM_BLOCK_UNSAFE},
+			{"vpnc_wg_if_public", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_wg_if_dns", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_wg_peer_public", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_wg_peer_endpoint", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_wg_peer_port", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_wg_peer_keepalive", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_wg_peer_allowedips", "", NULL, EVM_RESTART_VPNCLI},
+			{"vpnc_clients_allowed", "", NULL, EVM_RESTART_VPNCLI},
+			{"scripts.vpnc_remote_network.list", "File", NULL, EVM_RESTART_VPNCLI},
+			{"scripts.vpnc_exclude_network.list", "File", NULL, EVM_RESTART_VPNCLI},
+			{"scripts.vpnc_post_script.sh", "File", NULL, EVM_RESTART_VPNCLI|EVM_BLOCK_UNSAFE},
+			{"scripts.vpns_post_script.sh", "File", NULL, EVM_RESTART_VPNSVR|EVM_BLOCK_UNSAFE},
+#endif
+#if defined(APP_AMNEZIAWG)
+#define AWG_VARIABLE(name) \
+			{"vpnc_awg_" name, "", NULL, EVM_RESTART_VPNCLI}, \
+			{"vpns_awg_" name, "", NULL, EVM_RESTART_VPNSVR}
+			AWG_VARIABLE("jc"), AWG_VARIABLE("jmin"), AWG_VARIABLE("jmax"),
+			AWG_VARIABLE("i1"), AWG_VARIABLE("i2"), AWG_VARIABLE("i3"),
+			AWG_VARIABLE("i4"), AWG_VARIABLE("i5"),
+			AWG_VARIABLE("h1"), AWG_VARIABLE("h2"), AWG_VARIABLE("h3"), AWG_VARIABLE("h4"),
+			AWG_VARIABLE("s1"), AWG_VARIABLE("s2"), AWG_VARIABLE("s3"), AWG_VARIABLE("s4"),
+			AWG_VARIABLE("contentpaddingaddition"), AWG_VARIABLE("headerprotectionkey"),
+			AWG_VARIABLE("rekeyaftertime"), AWG_VARIABLE("rekeytimeout"), AWG_VARIABLE("rejectaftertime"),
+			AWG_VARIABLE("keepalivetimeout"), AWG_VARIABLE("maxhandshakeattempts"),
+			AWG_VARIABLE("randomtrailers"), AWG_VARIABLE("disablecookies"),
+#undef AWG_VARIABLE
+#endif
 #if defined(APP_OPENVPN)
 			{"vpns_ov_mode", "", NULL, EVM_RESTART_VPNSVR},
 			{"vpns_ov_prot", "", NULL, EVM_RESTART_VPNSVR},
@@ -782,7 +820,7 @@
 			{"scripts.ddns_script.sh", "File", NULL, EVM_RESTART_ALIDDNS},
 #endif
 			{"ManualDHCPList", "Group", ARGV((char*)variables_LANHostConfig_ManualDHCPList, "8", "55", "dhcp_staticnum_x"), EVM_RESTART_DHCPD},
-			{"VPNSACLList", "Group", ARGV((char*)variables_LANHostConfig_VPNSACLList, "8", "107", "vpns_num_x"), EVM_RESTART_VPNSVR},
+			{"VPNSACLList", "Group", ARGV((char*)variables_LANHostConfig_VPNSACLList, "8", "119", "vpns_num_x"), EVM_RESTART_VPNSVR},
 			{0,0,0,0}
 		};
 

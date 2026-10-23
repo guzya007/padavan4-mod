@@ -204,10 +204,14 @@ dir_y 						+= wing
 dir_y 						+= ipt2socks
 endif
 
-ifeq ($(CONFIG_FIRMWARE_INCLUDE_WIREGUARD),y)
+ifneq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_WIREGUARD) $(CONFIG_FIRMWARE_INCLUDE_AMNEZIAWG)),)
 dir_y 						+= wireguard
 dir_y 						+= wireguard-tools
+ifeq ($(CONFIG_FIRMWARE_INCLUDE_AMNEZIAWG),y)
+# Native VPN scripts need neither bash nor wg-quick.
+else
 dir_y						+= wg-quick
+endif
 endif
 
 ifdef CONFIG_BLK_DEV_SD

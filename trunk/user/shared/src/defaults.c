@@ -34,7 +34,7 @@ struct nvram_pair router_defaults[] = {
 
 	/* Miscellaneous parameters */
 	{ "time_zone", DEF_TIMEZONE },
-	{ "preferred_lang", "CN" },
+	{ "preferred_lang", "RU" },
 	{ "log_float_ui", "0" },		/* WebUI syslog float panel mode */
 	{ "log_ipaddr", "" },			/* syslog recipient IP */
 	{ "log_port", "514" },			/* syslog recipient Port */
@@ -851,6 +851,56 @@ struct nvram_pair router_defaults[] = {
 	{ "reboot_schedule_enable", "0" },
 	{ "reboot_schedule", "00000000000" },
 
+#if defined(APP_WIREGUARD)
+	/* Native VPN client/server (type 3), shared with padavan-ng. */
+	{ "vpns_wg_port", "51820" },
+	{ "vpns_wg_private", "" },
+	{ "vpns_wg_public", "" },
+	{ "vpns_wg_ext_addr", "" },
+	{ "vpns_wg_mtu", "1280" },
+	{ "vpnc_wg_mtu", "1280" },
+	{ "vpnc_wg_if_addr", "" },
+	{ "vpnc_wg_if_private", "" },
+	{ "vpnc_wg_if_preshared", "" },
+	{ "vpnc_wg_if_public", "" },
+	{ "vpnc_wg_if_dns", "" },
+	{ "vpnc_wg_peer_public", "" },
+	{ "vpnc_wg_peer_endpoint", "" },
+	{ "vpnc_wg_peer_port", "51820" },
+	{ "vpnc_wg_peer_keepalive", "25" },
+	{ "vpnc_wg_peer_allowedips", "0.0.0.0/0" },
+	{ "vpnc_clients_allowed", "" },
+#endif
+#if defined(APP_AMNEZIAWG)
+#define AWG_DEFAULT(name, value) \
+	{ "vpnc_awg_" name, value }, { "vpns_awg_" name, value }
+	AWG_DEFAULT("jc", "4"),
+	AWG_DEFAULT("jmin", "16"),
+	AWG_DEFAULT("jmax", "64"),
+	AWG_DEFAULT("i1", ""),
+	AWG_DEFAULT("i2", ""),
+	AWG_DEFAULT("i3", ""),
+	AWG_DEFAULT("i4", ""),
+	AWG_DEFAULT("i5", ""),
+	AWG_DEFAULT("h1", "1"),
+	AWG_DEFAULT("h2", "2"),
+	AWG_DEFAULT("h3", "3"),
+	AWG_DEFAULT("h4", "4"),
+	AWG_DEFAULT("s1", "0"),
+	AWG_DEFAULT("s2", "0"),
+	AWG_DEFAULT("s3", "0"),
+	AWG_DEFAULT("s4", "0"),
+	AWG_DEFAULT("contentpaddingaddition", "0"),
+	AWG_DEFAULT("headerprotectionkey", ""),
+	AWG_DEFAULT("rekeyaftertime", "120"),
+	AWG_DEFAULT("rekeytimeout", "5"),
+	AWG_DEFAULT("rejectaftertime", "180"),
+	AWG_DEFAULT("keepalivetimeout", "10"),
+	AWG_DEFAULT("maxhandshakeattempts", "3"),
+	AWG_DEFAULT("randomtrailers", "0"),
+	AWG_DEFAULT("disablecookies", "0"),
+#undef AWG_DEFAULT
+#endif
 #if defined(APP_WIREGUARD)
 	/*WIREGUARD*/
 	{ "wireguard_enable", "0" },

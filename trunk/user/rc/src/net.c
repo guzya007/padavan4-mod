@@ -556,6 +556,11 @@ is_hwnat_allow(void)
 
 	if (hw_nat_mode == 0)
 		return 0;
+#if defined(APP_WIREGUARD)
+	/* Policy-routed VPN traffic must not bypass mangle/CONNMARK. */
+	if (is_enabled_wireguard_client())
+		return 0;
+#endif
 
 	return 1;
 }
@@ -714,6 +719,10 @@ reload_nat_modules(void)
 #endif
 #if defined (USE_SFE)
 	int sfe_enable = nvram_get_int("sfe_enable");
+#if defined(APP_WIREGUARD)
+	if (is_enabled_wireguard_client())
+		sfe_enable = 0;
+#endif
 	int sfe_loaded = is_module_loaded("fast_classifier");
 
 	if (sfe_loaded && !sfe_enable) {
@@ -877,4 +886,3 @@ set_libc_gai(int ipv4_first)
 		unlink("/etc/gai.conf");
 	}
 }
-

@@ -405,6 +405,18 @@ void restore_dns_from_vpnc(void);
 int ipup_vpnc_main(int argc, char **argv);
 int ipdown_vpnc_main(int argc, char **argv);
 
+#if defined(APP_WIREGUARD)
+/* vpn_wireguard.c */
+int start_wireguard_server(void);
+void stop_wireguard_server(void);
+int start_wireguard_client(void);
+void stop_wireguard_client(void);
+int is_enabled_wireguard_client(void);
+void update_wireguard_client(void);
+void watchdog_wireguard_client(void);
+int wg_resolvconf_main(int argc, char **argv);
+#endif
+
 #if defined (APP_OPENVPN)
 /* openvpn.c */
 int start_openvpn_server(void);

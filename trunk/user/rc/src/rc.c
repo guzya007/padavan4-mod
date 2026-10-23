@@ -1513,6 +1513,9 @@ static const applet_rc_t applets_rc[] = {
 	{ "ddns_updated",	ddns_updated_main	},
 	{ "ntpc_updated",	ntpc_updated_main	},
 	{ "ntpc_syncnow",	ntpc_syncnow_main	},
+#if defined(APP_WIREGUARD)
+	{ "update_resolvconf", wg_resolvconf_main },
+#endif
 
 	{ "detect_wan",		detect_wan_main		},
 	{ "detect_link",	detect_link_main	},
@@ -1864,4 +1867,3 @@ main(int argc, char **argv)
 
 	return ret;
 }
-

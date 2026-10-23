@@ -46,7 +46,7 @@
 
 #define DEF_ROOT_PASSWORD	"admin"
 #define DEF_SMB_WORKGROUP	"WORKGROUP"
-#define DEF_TIMEZONE		"CST-8"
+#define DEF_TIMEZONE		"UTC-3"
 #define DEF_NTP_SERVER0		"ntp1.aliyun.com"
 #define DEF_NTP_SERVER1		"time1.cloud.tencent.com"
 #ifdef SUPPORT_OPENSSL_EC

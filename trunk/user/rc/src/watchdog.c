@@ -561,6 +561,10 @@ watchdog_on_timer(void)
 		dnsmasq_process_check();
 
 	inet_handler(is_ap_mode);
+#if defined(APP_WIREGUARD)
+	if (!is_ap_mode)
+		watchdog_wireguard_client();
+#endif
 
 	/* update kernel timezone daylight */
 	setkernel_tz();

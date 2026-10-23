@@ -1695,6 +1695,15 @@ update_resolvconf(int is_first_run, int do_not_notify)
 						fprintf(fp, "nameserver %s\n", word);
 						i_total_dns++;
 					}
+#if defined(APP_WIREGUARD) && defined(USE_IPV6)
+					else if (nvram_match("vpnc_type", "3")) {
+						char dns6s[INET6_ADDRSTRLEN] = {0};
+						if (ipv6_compact(word, dns6s, 0) == 0) {
+							fprintf(fp, "nameserver %s\n", dns6s);
+							i_total_dns++;
+						}
+					}
+#endif
 				}
 			}
 		}
@@ -1735,6 +1744,9 @@ update_resolvconf(int is_first_run, int do_not_notify)
 		
 #if defined (USE_IPV6)
 		/* DNSv6 servers */
+#if defined(APP_WIREGUARD)
+		if (!nvram_match("vpnc_type", "3") || i_pdns != 2 || i_total_dns < 1) {
+#endif
 		wan_dns = get_wan_unit_value(0, "dns6");
 		foreach(word, wan_dns, next) {
 			if (strlen(word) > 0) {
@@ -1746,6 +1758,9 @@ update_resolvconf(int is_first_run, int do_not_notify)
 				}
 			}
 		}
+#if defined(APP_WIREGUARD)
+		}
+#endif
 #endif
 		fclose(fp);
 	}

@@ -83,6 +83,12 @@ start_vpn_client(void)
 	if (i_type == 2)
 		return start_openvpn_client();
 #endif
+#if defined(APP_WIREGUARD)
+	if (i_type == 3)
+		return start_wireguard_client();
+#endif
+	if (i_type > 1)
+		return -1;
 	vpnc_opt = VPN_CLIENT_PPPD_OPTIONS;
 
 	mkdir("/tmp/ppp", 0777);
@@ -219,6 +225,9 @@ stop_vpn_client(void)
 
 #if defined(APP_OPENVPN)
 	stop_openvpn_client();
+#endif
+#if defined(APP_WIREGUARD)
+	stop_wireguard_client();
 #endif
 
 	nvram_set_int_temp("l2tp_cli_t", 0);
@@ -368,4 +377,3 @@ ipdown_vpnc_main(int argc, char **argv)
 
 	return 0;
 }
-

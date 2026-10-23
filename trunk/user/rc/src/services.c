@@ -492,13 +492,17 @@ void restart_aldriver(void){
 
 #if defined(APP_WIREGUARD)
 void stop_wireguard(void){
+#if !defined(APP_AMNEZIAWG)
 	eval("/usr/bin/wireguard.sh","stop");
+#endif
 }
 
 void start_wireguard(void){
+#if !defined(APP_AMNEZIAWG)
 	int wireguard_enable = nvram_get_int("wireguard_enable");
 	if ( wireguard_enable == 1)
 		eval("/usr/bin/wireguard.sh","start");
+#endif
 }
 
 void restart_wireguard(void){

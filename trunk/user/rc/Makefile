@@ -31,6 +31,9 @@ romfs:
 	$(LN) rc $(ROMFSDIR)/sbin/restart_dhcpd
 	$(LN) rc $(ROMFSDIR)/sbin/restart_vpn_server
 	$(LN) rc $(ROMFSDIR)/sbin/restart_vpn_client
+ifneq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_WIREGUARD) $(CONFIG_FIRMWARE_INCLUDE_AMNEZIAWG)),)
+	$(LN) rc $(ROMFSDIR)/sbin/update_resolvconf
+endif
 	$(LN) rc $(ROMFSDIR)/sbin/run_telnetd
 	$(LN) rc $(ROMFSDIR)/sbin/restart_firewall
 	$(LN) rc $(ROMFSDIR)/sbin/pids

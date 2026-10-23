@@ -129,6 +129,14 @@ if [ "$CONFIG_FIRMWARE_INCLUDE_WIREGUARD" = "y" ]; then
 else
 	func_disable_kernel_param "CONFIG_WIREGUARD"
 fi
+# AmneziaWG is opt-in for every board, and always installed as a module.
+sed -i '/^CONFIG_AMNEZIAWG[= _]/d; /^# CONFIG_AMNEZIAWG\(\|_DEBUG\) is not set$/d' "$kernel_tf"
+if [ "$CONFIG_FIRMWARE_INCLUDE_AMNEZIAWG" = "y" ]; then
+	echo 'CONFIG_AMNEZIAWG=m' >> "$kernel_tf"
+else
+	echo '# CONFIG_AMNEZIAWG is not set' >> "$kernel_tf"
+fi
+echo '# CONFIG_AMNEZIAWG_DEBUG is not set' >> "$kernel_tf"
 ############################# SQM #####################################
 if [ "$CONFIG_FIRMWARE_INCLUDE_SQM" = "y" ]; then
 	func_enable_kernel_param "CONFIG_NF_CONNTRACK_EVENTS"

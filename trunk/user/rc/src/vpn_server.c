@@ -176,6 +176,12 @@ start_vpn_server(void)
 	if (i_type == 2)
 		return start_openvpn_server();
 #endif
+#if defined(APP_WIREGUARD)
+	if (i_type == 3)
+		return start_wireguard_server();
+#endif
+	if (i_type > 1)
+		return -1;
 
 	mkdir("/tmp/ppp", 0777);
 	symlink("/sbin/rc", VPNS_PPP_UP_SCRIPT);
@@ -278,6 +284,9 @@ stop_vpn_server(void)
 #if defined(APP_OPENVPN)
 	stop_openvpn_server();
 #endif
+#if defined(APP_WIREGUARD)
+	stop_wireguard_server();
+#endif
 
 	unlink(VPN_SERVER_LEASE_FILE);
 }
@@ -313,6 +322,12 @@ reapply_vpn_server(void)
 		return;
 
 	i_type = nvram_get_int("vpns_type");
+#if defined(APP_WIREGUARD)
+	if (i_type == 3) {
+		restart_vpn_server();
+		return;
+	}
+#endif
 #if defined(APP_OPENVPN)
 	if (i_type == 2)
 		restart_openvpn_server();
@@ -501,4 +516,3 @@ ipdown_vpns_main(int argc, char **argv)
 
 	return 0;
 }
-

@@ -19,6 +19,7 @@
 <script type="text/javascript" src="/general.js"></script>
 <script type="text/javascript" src="/itoggle.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
+<script type="text/javascript" src="/amneziawg.js"></script>
 <script>
 var $j = jQuery.noConflict();
 
@@ -43,11 +44,13 @@ ip6_service = '<% nvram_get_x("", "ip6_service"); %>';
 
 <% login_state_hook(); %>
 <% openvpn_cli_cert_hook(); %>
+var wgSettings = <% wireguard_config("vpnc"); %>;
 
 function initial(){
 	show_banner(0);
 	show_menu(4, -1, 0);
 	show_footer();
+	wg_init('vpnc');
 
 	if (!found_app_ovpn())
 		document.form.vpnc_type.remove(2);
@@ -122,6 +125,8 @@ function valid_rlan_subnet(oa, om){
 }
 
 function validForm(){
+	if (document.form.vpnc_enable[0].checked && document.form.vpnc_type.value === '3')
+		return wg_valid('vpnc');
 	if (!document.form.vpnc_enable[0].checked)
 		return true;
 
@@ -165,6 +170,7 @@ function textarea_ovpn_enabled(v){
 
 function change_vpnc_enabled() {
 	var v = document.form.vpnc_enable[0].checked;
+	wg_toggle('vpnc', v, document.form.vpnc_type.value === '3');
 
 	showhide_div('tbl_vpnc_config', v);
 	showhide_div('tbl_vpnc_server', v);
@@ -181,13 +187,16 @@ function change_vpnc_enabled() {
 function change_vpnc_type() {
 	var mode = document.form.vpnc_type.value;
 	var is_ov = (mode == "2") ? 1 : 0;
+	var is_wg = (mode == "3") ? 1 : 0;
+	wg_toggle('vpnc', document.form.vpnc_enable[0].checked, is_wg);
+	showhide_div('vpnc_peer_row', !is_wg);
 
-	showhide_div('row_vpnc_auth', !is_ov);
-	showhide_div('row_vpnc_mppe', !is_ov);
-	showhide_div('row_vpnc_pppd', !is_ov);
-	showhide_div('row_vpnc_mtu', !is_ov);
-	showhide_div('row_vpnc_mru', !is_ov);
-	showhide_div('tbl_vpnc_route', !is_ov);
+	showhide_div('row_vpnc_auth', !is_ov && !is_wg);
+	showhide_div('row_vpnc_mppe', !is_ov && !is_wg);
+	showhide_div('row_vpnc_pppd', !is_ov && !is_wg);
+	showhide_div('row_vpnc_mtu', !is_ov && !is_wg);
+	showhide_div('row_vpnc_mru', !is_ov && !is_wg);
+	showhide_div('tbl_vpnc_route', !is_ov && !is_wg);
 
 	showhide_div('row_vpnc_ov_port', is_ov);
 	showhide_div('row_vpnc_ov_prot', is_ov);
@@ -212,8 +221,8 @@ function change_vpnc_type() {
 	else {
 		showhide_div('row_vpnc_ov_cnat', 0);
 		
-		showhide_div('row_vpnc_user', 1);
-		showhide_div('row_vpnc_pass', 1);
+		showhide_div('row_vpnc_user', !is_wg);
+		showhide_div('row_vpnc_pass', !is_wg);
 	}
 
 	showhide_div('col_vpnc_state', (vpnc_state_last == '1') ? 1 : 0);
@@ -372,11 +381,12 @@ function getHash(){
                                             <option value="0" <% nvram_match_x("", "vpnc_type", "0","selected"); %>>PPTP</option>
                                             <option value="1" <% nvram_match_x("", "vpnc_type", "1","selected"); %>>L2TP (w/o IPSec)</option>
                                             <option value="2" <% nvram_match_x("", "vpnc_type", "2","selected"); %>>OpenVPN</option>
+                                            <option value="3" <% nvram_match_x("", "vpnc_type", "3","selected"); %>>AmneziaWG</option>
                                         </select>
                                         <span id="certs_hint" style="display:none" class="label label-warning"><#OVPN_Hint#></span>
                                     </td>
                                 </tr>
-                                <tr>
+                                <tr id="vpnc_peer_row">
                                     <th><#VPNC_Peer#></th>
                                     <td>
                                         <input type="text" name="vpnc_peer" class="input" maxlength="256" size="32" value="<% nvram_get_x("", "vpnc_peer"); %>" onKeyPress="return is_string(this,event);"/>

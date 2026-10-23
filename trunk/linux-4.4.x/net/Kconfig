@@ -25,6 +25,8 @@ menuconfig NET
 
 if NET
 
+source "net/amneziawg/Kconfig"
+
 config WANT_COMPAT_NETLINK_MESSAGES
 	bool
 	help
