@@ -50,7 +50,9 @@ void update_wireguard_client(void)
 void watchdog_wireguard_client(void)
 {
 	if (is_enabled_wireguard_client())
-		doSystem("/usr/bin/wgc.sh watchdog &");
+		/* eval clears the timer handler's signal mask before starting the shell.
+		 * Wait only for the launcher; init reaps the background worker. */
+		eval("/bin/sh", "-c", "/usr/bin/wgc.sh watchdog &");
 }
 
 int wg_resolvconf_main(int argc, char **argv)

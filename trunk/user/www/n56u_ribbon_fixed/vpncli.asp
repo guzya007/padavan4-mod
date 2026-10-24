@@ -211,9 +211,13 @@ function change_vpnc_type() {
 	showhide_div('vpnc_peer_row', !is_wg);
 	showhide_div('row_vpnc_server_script', !is_wg);
 	inputCtrl(document.form['scripts.vpnc_server_script.sh'], !is_wg);
-	document.getElementById('vpnc_use_dns').textContent = is_wg ? '<#AWG_UseDNS#>' : '<#VPNC_PDNS#>';
-	document.getElementById('vpnc_use_dgw').textContent = is_wg ? '<#AWG_RouteAll#>' : '<#VPNC_DGW#>';
-	showhide_div('vpnc_wg_route_hint', is_wg);
+	$j('#vpnc_use_dns .help_tooltip, #vpnc_use_dgw .help_tooltip').popover('destroy');
+	$j('#vpnc_use_dns').text(is_wg ? '<#AWG_UseDNS#>' : '<#VPNC_PDNS#>');
+	$j('#vpnc_use_dgw').text(is_wg ? '<#AWG_RouteAll#>' : '<#VPNC_DGW#>');
+	if (is_wg) {
+		wg_hint(document.getElementById('vpnc_use_dns'), '<#AWG_DNSHint#>');
+		wg_hint(document.getElementById('vpnc_use_dgw'), '<#AWG_RouteHint#>');
+	}
 
 	showhide_div('row_vpnc_auth', !is_ov && !is_wg);
 	showhide_div('row_vpnc_mppe', !is_ov && !is_wg);
@@ -627,7 +631,6 @@ function getHash(){
                                             <option value="0" <% nvram_match_x("", "vpnc_dgw", "0","selected"); %>><#checkbox_No#></option>
                                             <option value="1" <% nvram_match_x("", "vpnc_dgw", "1","selected"); %>><#checkbox_Yes#></option>
                                         </select>
-                                        <div id="vpnc_wg_route_hint" class="help-block" style="display:none"><#AWG_RouteHint#></div>
                                     </td>
                                 </tr>
                                 <tr id="row_vpnc_server_script">

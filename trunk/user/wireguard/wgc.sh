@@ -342,14 +342,14 @@ watchdog_wg()
         set_state 1
     else
         set_state 2
-        # Re-resolve dynamic endpoints and trigger a handshake without blocking rc.
+        # Re-resolve dynamic endpoints. Keepalive/client traffic triggers the
+        # handshake; a broadcast ping is unnecessary and can hold the lock.
         endpoint=$(nvram get vpnc_wg_peer_endpoint)
         if "$WG" set "$IF_NAME" peer "$(nvram get vpnc_wg_peer_public)" \
             endpoint "$(wg_endpoint "$endpoint" "$(nvram get vpnc_wg_peer_port)")" 2>/dev/null; then
             WG_STAGE=endpoint
             update_endpoint_rule || { set_error; return 1; }
         fi
-        ping -c 1 -W 1 -I "$IF_NAME" 255.255.255.255 >/dev/null 2>&1
     fi
     wg_post vpnc watchdog
     return 0

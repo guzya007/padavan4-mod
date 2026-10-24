@@ -1,16 +1,18 @@
 /* Native VPN type 3 UI, using padavan-ng's NVRAM names and AWG 3.1 parameters. */
 var wgRole, wgStatusTimer, wgImportSequence = 0;
 var wgClientState = null, wgStatusMode = '', wgStatusGeneration = 0, wgStatusRequest = 0;
+var wgHelpEnabled = '<% nvram_get_x("", "help_enable"); %>' !== '0';
 var wgAwgFields = ['jc', 'jmin', 'jmax', 'i1', 'i2', 'i3', 'i4', 'i5',
     'h1', 'h2', 'h3', 'h4', 's1', 's2', 's3', 's4', 'contentpaddingaddition',
     'headerprotectionkey', 'rekeyaftertime', 'rekeytimeout', 'rejectaftertime',
     'keepalivetimeout', 'maxhandshakeattempts', 'randomtrailers', 'disablecookies'];
 
-function wg_input(table, name, label, type) {
+function wg_input(table, name, label, type, hint) {
     var row = document.createElement('tr');
     var th = document.createElement('th');
     th.style.width = '50%';
     th.textContent = label;
+    if (hint) wg_hint(th, hint);
     row.appendChild(th);
     var td = document.createElement('td');
     var input = document.createElement(type === 'textarea' ? 'textarea' : 'input');
@@ -48,12 +50,17 @@ function wg_button(input, label, handler) {
     input.parentNode.appendChild(button);
 }
 
-function wg_hint(input, text) {
-    var hint = document.createElement('div');
-    hint.className = 'help-block';
-    hint.textContent = text;
-    input.parentNode.appendChild(hint);
-    return hint;
+function wg_hint(label, text) {
+    if (!wgHelpEnabled) return;
+    var link = document.createElement('a');
+    link.className = 'help_tooltip';
+    link.href = '#';
+    link.textContent = label.textContent;
+    $j(label).empty().append(link);
+    $j(link).popover({title: link.textContent, content: text, html: false, trigger: 'manual'})
+        .on('mouseenter focus', function() { $j(this).popover('show'); })
+        .on('mouseleave blur', function() { $j(this).popover('hide'); })
+        .on('click', function(event) { event.preventDefault(); });
 }
 
 function wg_group(table, title, collapsed) {
@@ -102,14 +109,13 @@ function wg_secret(input) {
 }
 
 function wg_clients(table) {
-    var allowed = wg_input(table, 'vpnc_clients_allowed', '<#AWG_Clients#>', 'hidden');
+    var allowed = wg_input(table, 'vpnc_clients_allowed', '<#AWG_Clients#>', 'hidden', '<#AWG_ClientsHint#>');
     var added = document.createElement('input');
     added.type = 'hidden'; added.name = 'vpnc_clients'; added.value = wgSettings.vpnc_clients || '';
     allowed.parentNode.appendChild(added);
     var selector = document.createElement('div');
     selector.id = 'vpnc_clients_selector';
     allowed.parentNode.appendChild(selector);
-    wg_hint(allowed, '<#AWG_ClientsHint#>');
     function entries(value) { return (value || '').split(/[\s,]+/).filter(Boolean); }
     var selected = entries(allowed.value), manual = entries(added.value), items = [];
     function add(ip, title) {
@@ -175,50 +181,66 @@ function wg_init(role) {
     table.className = 'table';
     table.id = 'tbl_' + role + '_wg';
     table.style.display = 'none';
+    var status = document.createElement('pre');
+    status.id = 'wg_status';
+    status.textContent = '<#AWG_Stopped#>';
+    status.setAttribute('aria-live', 'polite');
     var privateName = role + (role === 'vpnc' ? '_wg_if_private' : '_wg_private');
     if (role === 'vpnc') {
-        var file = wg_input(table, 'wg_import_file', '<#AWG_Import#>', 'file');
+        var file = wg_input(table, 'wg_import_file', '<#AWG_Import#>', 'file', '<#AWG_ImportHint#>');
         file.accept = '.conf,.txt';
         file.removeAttribute('name');
         file.onchange = function() { wg_import(file); };
         file.onclick = function() { file.value = ''; };
-        wg_button(file, '<#AWG_Import#>', function() { wg_import(file); });
-        wg_hint(file, '<#AWG_ImportHint#>').id = 'wg_import_result';
-        wg_input(table, 'vpnc_wg_if_addr', '<#AWG_Address#>');
+        var state = document.createElement('span'); state.id = 'col_vpnc_wg_state';
+        state.style.display = 'none'; file.parentNode.appendChild(state);
+        var result = document.createElement('div');
+        result.id = 'wg_import_result'; result.className = 'help-block';
+        result.style.display = 'none'; result.setAttribute('aria-live', 'polite');
+        file.parentNode.appendChild(result);
+        var statusCell = table.insertRow().insertCell();
+        statusCell.colSpan = 2; statusCell.appendChild(status);
+        wg_input(table, 'vpnc_wg_if_addr', '<#AWG_Address#>', 'text', '<#AWG_AddressHint#>');
     }
-    var privateInput = wg_input(table, privateName, '<#AWG_Private#>', 'password');
+    var privateInput = wg_input(table, privateName, '<#AWG_Private#>', 'password', '<#AWG_PrivateHint#>');
     privateInput.maxLength = 44;
     privateInput.onchange = function() { wg_public(privateName); };
     wg_button(privateInput, '<#AWG_Generate#>', function() { wg_generate(privateName); });
     wg_secret(privateInput);
-    var publicInput = wg_input(table, privateName.replace(/private$/, 'public'), '<#AWG_Public#>');
+    var publicInput = wg_input(table, privateName.replace(/private$/, 'public'), '<#AWG_Public#>', 'text', '<#AWG_PublicHint#>');
     publicInput.readOnly = true;
     wg_button(publicInput, '<#AWG_Copy#>', function() { wg_copy(publicInput); });
     if (role === 'vpnc') {
-        var psk = wg_input(table, 'vpnc_wg_if_preshared', '<#AWG_Preshared#>', 'password');
+        var psk = wg_input(table, 'vpnc_wg_if_preshared', '<#AWG_Preshared#>', 'password', '<#AWG_PresharedHint#>');
         psk.maxLength = 44;
         wg_button(psk, '<#AWG_Generate#>', function() { wg_generate('vpnc_wg_if_preshared', 'genpsk'); });
         wg_secret(psk);
-        wg_input(table, 'vpnc_wg_peer_public', '<#AWG_PeerPublic#>').maxLength = 44;
-        var endpointInput = wg_input(table, 'vpnc_wg_peer_endpoint', '<#AWG_Endpoint#>');
-        var state = document.createElement('span'); state.id = 'col_vpnc_wg_state';
-        state.style.display = 'none'; endpointInput.parentNode.appendChild(state);
-        wg_input(table, 'vpnc_wg_peer_port', '<#OVPN_Port#>');
-        wg_input(table, 'vpnc_wg_peer_keepalive', 'PersistentKeepalive');
-        wg_input(table, 'vpnc_wg_peer_allowedips', 'AllowedIPs');
-        wg_input(table, 'vpnc_wg_if_dns', 'DNS');
+        wg_input(table, 'vpnc_wg_peer_public', '<#AWG_PeerPublic#>', 'text', '<#AWG_PeerPublicHint#>').maxLength = 44;
+        wg_input(table, 'vpnc_wg_peer_endpoint', '<#AWG_Endpoint#>', 'text', '<#AWG_EndpointHint#>');
+        wg_input(table, 'vpnc_wg_peer_port', '<#OVPN_Port#>', 'text', '<#AWG_PortHint#>');
+        wg_input(table, 'vpnc_wg_peer_keepalive', 'PersistentKeepalive', 'text', '<#AWG_KeepaliveHint#>');
+        wg_input(table, 'vpnc_wg_peer_allowedips', 'AllowedIPs', 'text', '<#AWG_AllowedIPsHint#>');
+        wg_input(table, 'vpnc_wg_if_dns', 'DNS', 'text', '<#AWG_DNSHint#>');
     } else {
-        wg_input(table, 'vpns_wg_port', '<#OVPN_Port#>');
-        wg_input(table, 'vpns_wg_ext_addr', '<#AWG_Endpoint#>');
-        wg_input(table, 'scripts.vpns_post_script.sh', '<#AWG_PostScript#>', 'textarea');
+        wg_input(table, 'vpns_wg_port', '<#OVPN_Port#>', 'text', '<#AWG_PortHint#>');
+        wg_input(table, 'vpns_wg_ext_addr', '<#AWG_Endpoint#>', 'text', '<#AWG_ServerEndpointHint#>');
+        wg_input(table, 'scripts.vpns_post_script.sh', '<#AWG_PostScript#>', 'textarea', '<#AWG_PostScriptHint#>');
         var keyCell = document.form.vpns_pass_x_0;
         keyCell.maxLength = 44;
         wg_button(keyCell, '<#AWG_Generate#>', function() { wg_generate('vpns_pass_x_0'); });
         keyCell.parentNode.lastChild.id = 'wg_client_genkey';
     }
-    wg_input(table, role + '_wg_mtu', 'MTU');
+    wg_input(table, role + '_wg_mtu', 'MTU', 'text', '<#AWG_MTUHint#>');
     if (found_app_awg()) {
-        var awg = wg_group(table, 'AmneziaWG 3.1 — <#AWG_ConfigHint#>');
+        var awg = wg_group(table, 'AmneziaWG 3.1 — <#AWG_ConfigHint#>', true);
+        var hints = {
+            jc: '<#AWG_JcHint#>', jmin: '<#AWG_JSizeHint#>', jmax: '<#AWG_JSizeHint#>',
+            headerprotectionkey: '<#AWG_HeaderKeyHint#>', contentpaddingaddition: '<#AWG_PaddingHint#>',
+            randomtrailers: '<#AWG_TrailersHint#>', disablecookies: '<#AWG_CookiesHint#>',
+            rekeyaftertime: '<#AWG_RekeyHint#>', rekeytimeout: '<#AWG_RetryHint#>',
+            rejectaftertime: '<#AWG_RejectHint#>', keepalivetimeout: '<#AWG_TimeoutHint#>',
+            maxhandshakeattempts: '<#AWG_AttemptsHint#>'
+        };
         var groups = [
             ['<#AWG_Junk#>', ['jc', 'jmin', 'jmax']],
             ['<#AWG_Headers#>', ['headerprotectionkey', 'contentpaddingaddition', 'randomtrailers',
@@ -231,7 +253,8 @@ function wg_init(role) {
             var fields = wg_group(awg, group[0], true);
             group[1].forEach(function(field) {
                 var input = wg_input(fields, role + '_awg_' + field, field,
-                    field === 'headerprotectionkey' ? 'password' : 'text');
+                    field === 'headerprotectionkey' ? 'password' : 'text', hints[field] ||
+                    (/^h/.test(field) ? '<#AWG_HHint#>' : /^s/.test(field) ? '<#AWG_SHint#>' : '<#AWG_IHint#>'));
                 if (/^(randomtrailers|disablecookies)$/.test(field)) {
                     var select = document.createElement('select');
                     select.name = input.name; select.className = 'input';
@@ -253,11 +276,11 @@ function wg_init(role) {
         var access = wg_group(table, '<#AWG_AccessControl#>');
         wg_clients(access);
         wg_input(wg_group(access, '<#AWG_RemoteNetworks#>', true),
-            'scripts.vpnc_remote_network.list', '<#AWG_RemoteNetworks#>', 'textarea');
+            'scripts.vpnc_remote_network.list', '<#AWG_RemoteNetworks#>', 'textarea', '<#AWG_RemoteHint#>');
         wg_input(wg_group(access, '<#AWG_ExcludeNetworks#>', true),
-            'scripts.vpnc_exclude_network.list', '<#AWG_ExcludeNetworks#>', 'textarea');
+            'scripts.vpnc_exclude_network.list', '<#AWG_ExcludeNetworks#>', 'textarea', '<#AWG_ExcludeHint#>');
         wg_input(wg_group(table, '<#AWG_PostScript#>', true),
-            'scripts.vpnc_post_script.sh', '<#AWG_PostScript#>', 'textarea');
+            'scripts.vpnc_post_script.sh', '<#AWG_PostScript#>', 'textarea', '<#AWG_PostScriptHint#>');
     }
     var base = document.getElementById(role === 'vpnc' ? 'tbl_vpnc_config' : 'tbl_vpn_config');
     base.parentNode.insertBefore(table, base.nextSibling);
@@ -266,11 +289,7 @@ function wg_init(role) {
         if (document.form.elements[name]) document.form.elements[name].value = wgSettings[name];
     });
     if (!login_safe()) $j(table).find('input, textarea, select, button').prop('disabled', true);
-    var status = document.createElement('pre');
-    status.id = 'wg_status';
-    status.textContent = '<#AWG_Stopped#>';
-    status.setAttribute('aria-live', 'polite');
-    table.parentNode.insertBefore(status, table.nextSibling);
+    if (role !== 'vpnc') table.parentNode.insertBefore(status, table.nextSibling);
     wgStatusTimer = setTimeout(wg_refresh_status, 1000);
 }
 
@@ -279,6 +298,7 @@ function wg_toggle(role, enabled, selected) {
     var active = enabled && selected;
     var mode = role + ':' + !!enabled + ':' + !!selected;
     if (mode !== wgStatusMode) {
+        $j('#tbl_' + role + '_wg .help_tooltip').popover('hide');
         wgStatusMode = mode;
         wgStatusGeneration++;
         wgClientState = null;
@@ -337,7 +357,7 @@ function wg_valid(role) {
             } else if (/^(randomtrailers|disablecookies)$/.test(field)) {
                 if (/^[01]$/.test(value)) continue;
             } else {
-                var range = value.match(/^(\d+)(?:-(\d+))?$/);
+                var range = value.match(/^s[1-4]$/.test(field) ? /^(\d+)$/ : /^(\d+)(?:-(\d+))?$/);
                 if (range && +range[1] <= max && (!range[2] || (+range[2] >= +range[1] && +range[2] <= max))) continue;
             }
             wg_reveal(input); alert('<#AWG_InvalidConfig#>'); input.focus(); return false;
@@ -412,7 +432,7 @@ function wg_import(input) {
     var result = document.getElementById('wg_import_result');
     function failure(message) {
         if (sequence !== wgImportSequence) return;
-        if (result) result.textContent = message;
+        if (result) { result.textContent = message; result.style.display = ''; }
         alert(message);
     }
     if (input.files[0].size > 65536) { failure('<#AWG_InvalidConfig#>'); return; }
@@ -424,7 +444,7 @@ function wg_import(input) {
                 if (sequence !== wgImportSequence || !login_safe()) return;
                 try {
                     wg_apply_conf(config, defaults);
-                    if (result) result.textContent = '<#AWG_Imported#>';
+                    if (result) { result.textContent = '<#AWG_Imported#>'; result.style.display = ''; }
                 } catch (error) { failure(error.message); }
             }
             if (!found_app_awg()) apply({});
