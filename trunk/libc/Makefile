@@ -29,6 +29,13 @@ all:
 
 romfs:
 	$(MAKE) -C $(LIBC) romfs
+	# OpenSSL threads and libusb need GCC's atomic runtime on MIPS32.
+	@libatomic="$$($(CC) -print-file-name=libatomic.so.1)" || exit 1; \
+	if [ "$$libatomic" = libatomic.so.1 ] || [ ! -f "$$libatomic" ]; then \
+		echo "ERROR: target toolchain is missing libatomic.so.1" >&2; \
+		exit 1; \
+	fi; \
+	install -m 644 "$$libatomic" "$(ROMFSDIR)/lib/libatomic.so.1"
 
 clean:
 	$(MAKE) -C $(LIBC) clean
