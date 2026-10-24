@@ -11,6 +11,8 @@ PREF_MAIN=5181
 CONF="/tmp/wg0.conf.$$"
 REMOTE_NETWORK_LIST=/etc/storage/vpnc_remote_network.list
 EXCLUDE_NETWORK_LIST=/etc/storage/vpnc_exclude_network.list
+DOMAIN_LIST=/etc/storage/vpnc_domains.list
+DOMAIN_IPSET=wgc.domains
 ENDPOINT_STATE=/var/run/wgc.endpoint
 ACTIVE_STATE=/var/run/wgc.active
 LOCAL_RULE="^$PREF_LOCAL:[[:space:]]+from all fwmark (0xca6c|$FWMARK) lookup (main|254) suppress_prefixlength 0[[:space:]]*$"
@@ -70,7 +72,7 @@ start_fw()
 {
     is_started || return 0
     iptables -t mangle -nL vpnc_wireguard >/dev/null 2>&1 && return 0
-    local i clients raw_clients default routes excluded
+    local i clients raw_clients default routes excluded domains
     raw_clients=$(nvram get vpnc_clients_allowed | tr ',[:space:]' '\n' | sed '/^$/d' | sort -u)
     clients=$(printf '%s\n' "$raw_clients" | filter_ipv4)
     [ "$raw_clients" = "$clients" ] || return 1
@@ -78,7 +80,14 @@ start_fw()
     routes=$(lists "$REMOTE_NETWORK_LIST") || return 1
     routes="$routes $(nvram get vpnc_wg_peer_allowedips | tr ', ' '\n\n' | filter_ipv4)"
     excluded=$(exclusions) || return 1
-    # This uses no IPSet; existing NEWIFI3 IPSET=n remains unchanged.
+    domains=
+    if [ "$default" != 1 ] && [ -s "$DOMAIN_LIST" ] && grep -q '^[[:space:]]*[^#[:space:]]' "$DOMAIN_LIST"; then
+        # DNSMasq populates this set from DNS replies, including subdomains.
+        # IP/CIDR selectors still work on builds without IPSet.
+        [ -x /sbin/ipset ] || return 1
+        /sbin/ipset -exist create "$DOMAIN_IPSET" hash:ip family inet timeout 21600 || return 1
+        domains=1
+    fi
     {
         echo '*mangle'
         echo ':vpnc_wireguard - [0:0]'
@@ -96,6 +105,7 @@ start_fw()
         if [ "$default" = 1 ]; then
             echo "-A vpnc_wireguard_remote -j MARK --set-mark $FWMARK"
         else
+            [ -z "$domains" ] || echo "-A vpnc_wireguard_remote -m set --match-set $DOMAIN_IPSET dst -j MARK --set-mark $FWMARK"
             for i in $routes; do
                 [ "$i" = 0.0.0.0/0 ] && continue
                 echo "-A vpnc_wireguard_remote -d $i -j MARK --set-mark $FWMARK"

@@ -556,11 +556,6 @@ is_hwnat_allow(void)
 
 	if (hw_nat_mode == 0)
 		return 0;
-#if defined(APP_WIREGUARD)
-	/* Policy-routed VPN traffic must not bypass mangle/CONNMARK. */
-	if (is_enabled_wireguard_client())
-		return 0;
-#endif
 
 	return 1;
 }

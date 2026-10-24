@@ -50,7 +50,7 @@ function wg_button(input, label, handler) {
     input.parentNode.appendChild(button);
 }
 
-function wg_hint(label, text) {
+function wg_hint(label, text, toggle) {
     if (!wgHelpEnabled) return;
     var link = document.createElement('a');
     link.className = 'help_tooltip';
@@ -60,7 +60,8 @@ function wg_hint(label, text) {
     $j(link).popover({title: link.textContent, content: text, html: false, trigger: 'manual'})
         .on('mouseenter focus', function() { $j(this).popover('show'); })
         .on('mouseleave blur', function() { $j(this).popover('hide'); })
-        .on('click', function(event) { event.preventDefault(); });
+        .on('click', function(event) { event.preventDefault(); if (toggle) toggle(); });
+    return link;
 }
 
 function wg_group(table, title, collapsed) {
@@ -91,10 +92,45 @@ function wg_reveal(input) {
     for (var parent = input.parentNode; parent; parent = parent.parentNode) {
         if (parent.tagName === 'TABLE' && parent.style.display === 'none') {
             parent.style.display = '';
-            if (parent.previousSibling && parent.previousSibling.tagName === 'BUTTON')
+            if (parent.previousSibling && parent.previousSibling.hasAttribute('aria-expanded'))
                 parent.previousSibling.setAttribute('aria-expanded', 'true');
         }
+        if (parent.getAttribute && parent.getAttribute('data-wg-panel') === '1') {
+            parent.style.display = '';
+            parent.previousSibling.setAttribute('aria-expanded', 'true');
+        }
     }
+}
+
+function wg_textarea(table, name, title, hint) {
+    var input = wg_input(table, name, title, 'textarea');
+    var row = input.parentNode.parentNode, cell = input.parentNode;
+    row.removeChild(row.firstChild);
+    cell.colSpan = 2;
+    var label = document.createElement('span');
+    label.textContent = title;
+    var panel = document.createElement('div');
+    panel.id = name.replace(/\./g, '_') + '_panel';
+    panel.setAttribute('data-wg-panel', '1');
+    panel.style.display = 'none';
+    panel.style.marginTop = '8px';
+    function toggle() {
+        var visible = panel.style.display === 'none';
+        panel.style.display = visible ? '' : 'none';
+        heading.setAttribute('aria-expanded', visible ? 'true' : 'false');
+    }
+    var heading = wg_hint(label, hint, toggle);
+    if (!heading) {
+        heading = document.createElement('a');
+        heading.href = '#'; heading.textContent = title;
+        heading.onclick = function() { toggle(); return false; };
+    }
+    heading.setAttribute('aria-expanded', 'false');
+    heading.setAttribute('aria-controls', panel.id);
+    input.setAttribute('aria-label', title);
+    cell.appendChild(heading);
+    panel.appendChild(input); cell.appendChild(panel);
+    return input;
 }
 
 function wg_copy(input) {
@@ -224,7 +260,7 @@ function wg_init(role) {
     } else {
         wg_input(table, 'vpns_wg_port', '<#OVPN_Port#>', 'text', '<#AWG_PortHint#>');
         wg_input(table, 'vpns_wg_ext_addr', '<#AWG_Endpoint#>', 'text', '<#AWG_ServerEndpointHint#>');
-        wg_input(table, 'scripts.vpns_post_script.sh', '<#AWG_PostScript#>', 'textarea', '<#AWG_PostScriptHint#>');
+        wg_textarea(table, 'scripts.vpns_post_script.sh', '<#AWG_ServerPostScript#>', '<#AWG_PostScriptHint#>');
         var keyCell = document.form.vpns_pass_x_0;
         keyCell.maxLength = 44;
         wg_button(keyCell, '<#AWG_Generate#>', function() { wg_generate('vpns_pass_x_0'); });
@@ -273,14 +309,12 @@ function wg_init(role) {
         });
     }
     if (role === 'vpnc') {
-        var access = wg_group(table, '<#AWG_AccessControl#>');
-        wg_clients(access);
-        wg_input(wg_group(access, '<#AWG_RemoteNetworks#>', true),
-            'scripts.vpnc_remote_network.list', '<#AWG_RemoteNetworks#>', 'textarea', '<#AWG_RemoteHint#>');
-        wg_input(wg_group(access, '<#AWG_ExcludeNetworks#>', true),
-            'scripts.vpnc_exclude_network.list', '<#AWG_ExcludeNetworks#>', 'textarea', '<#AWG_ExcludeHint#>');
-        wg_input(wg_group(table, '<#AWG_PostScript#>', true),
-            'scripts.vpnc_post_script.sh', '<#AWG_PostScript#>', 'textarea', '<#AWG_PostScriptHint#>');
+        wg_clients(table);
+        wg_textarea(table, 'scripts.vpnc_remote_network.list', '<#AWG_RemoteNetworks#>', '<#AWG_RemoteHint#>');
+        if (wgSettings.ipset_supported)
+            wg_textarea(table, 'scripts.vpnc_domains.list', '<#AWG_Domains#>', '<#AWG_DomainsHint#>').maxLength = 32768;
+        wg_textarea(table, 'scripts.vpnc_exclude_network.list', '<#AWG_ExcludeNetworks#>', '<#AWG_ExcludeHint#>');
+        wg_textarea(table, 'scripts.vpnc_post_script.sh', '<#AWG_PostScript#>', '<#AWG_PostScriptHint#>');
     }
     var base = document.getElementById(role === 'vpnc' ? 'tbl_vpnc_config' : 'tbl_vpn_config');
     base.parentNode.insertBefore(table, base.nextSibling);
@@ -330,6 +364,10 @@ function wg_valid(role) {
                 wg_reveal(networks); alert('<#AWG_InvalidConfig#>'); networks.focus(); return false;
             }
         }
+        var domains = document.form.elements['scripts.vpnc_domains.list'];
+        if (domains && !domains.disabled && !wg_valid_domains(domains.value)) {
+            wg_reveal(domains); alert('<#AWG_InvalidDomains#>'); domains.focus(); return false;
+        }
         if (!validate_range(document.form.vpnc_wg_peer_port, 1, 65535) ||
             !validate_range(document.form.vpnc_wg_peer_keepalive, 0, 65535)) return false;
         if (!/^[A-Za-z0-9+/]{43}=$/.test(document.form.vpnc_wg_peer_public.value) ||
@@ -372,6 +410,18 @@ function wg_valid_ipv4_list(value) {
         var pair = network.split('/'), octets = pair[0].split('.');
         return pair.length <= 2 && (pair.length === 1 || (/^\d+$/.test(pair[1]) && +pair[1] <= 32)) &&
             octets.length === 4 && octets.every(function(octet) { return /^\d{1,3}$/.test(octet) && +octet <= 255; });
+    });
+}
+
+function wg_valid_domains(value) {
+    return value.replace(/#.*$/gm, '').split(/\r\n|\n|\r/).every(function(domain) {
+        domain = domain.trim();
+        if (!domain) return true;
+        domain = domain.replace(/\.$/, '');
+        return domain.length <= 253 && domain.indexOf('.') > 0 && !/^[\d.]+$/.test(domain) &&
+            domain.split('.').every(function(label) {
+                return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label);
+            });
     });
 }
 
@@ -523,13 +573,16 @@ function wg_refresh_status() {
 }
 
 function wg_refresh_clients() {
+    var generation = wgStatusGeneration;
     var table = document.querySelector('#wnd_vpns_cli table');
     var labels = ['<#VPNS_CName#>', '<#AWG_Address#>', '<#AWG_Endpoint#>', '<#AWG_Handshake#>', 'RX', 'TX'];
     var header = table.rows[0];
     header.textContent = '';
     labels.forEach(function(label) { var th = document.createElement('th'); th.textContent = label; header.appendChild(th); });
-    $j.ajax({type: 'post', url: '/apply.cgi', dataType: 'json',
+    $j.ajax({type: 'post', url: '/apply.cgi', dataType: 'json', timeout: 4000,
         data: {action_mode: ' wg_action ', action: 'clients'}, success: function(clients) {
+            if (generation !== wgStatusGeneration || document.form.vpns_type.value !== '3' ||
+                !Array.isArray(clients) || !clients.every(function(client) { return Array.isArray(client) && client.length >= 6; })) return;
             $j(table).find('tr.client').remove();
             if (!clients.length) {
                 var row = table.insertRow(); row.className = 'client';

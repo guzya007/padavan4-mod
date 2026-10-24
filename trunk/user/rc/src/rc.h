@@ -414,6 +414,9 @@ void stop_wireguard_client(void);
 int is_enabled_wireguard_client(void);
 void update_wireguard_client(void);
 void watchdog_wireguard_client(void);
+#if defined(USE_IPSET)
+void wireguard_dnsmasq_config(FILE *config);
+#endif
 int wg_resolvconf_main(int argc, char **argv);
 #endif
 

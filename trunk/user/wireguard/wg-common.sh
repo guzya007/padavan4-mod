@@ -55,5 +55,20 @@ wg_post()
 {
     local script="/etc/storage/${1}_post_script.sh"
     [ -s "$script" ] && [ -x "$script" ] || return 0
+    if [ "$1" = vpnc ]; then
+        # Preserve padavan-ng's public event context without exporting secrets.
+        MODULE="$MODULE" WG="$WG" IF_NAME="$IF_NAME" \
+        IF_ADDR="$(nvram get vpnc_wg_if_addr | tr ', ' '\n\n')" \
+        IF_MTU="$(nvram get vpnc_wg_mtu)" \
+        IF_DNS="$(nvram get vpnc_wg_if_dns | tr ',' ' ')" \
+        PEER_PORT="$(nvram get vpnc_wg_peer_port)" \
+        PEER_ENDPOINT="$(nvram get vpnc_wg_peer_endpoint)" \
+        PEER_ALLOWEDIPS="$(nvram get vpnc_wg_peer_allowedips | tr ',' '\n')" \
+        NV_CLIENTS_LIST="$(nvram get vpnc_clients_allowed | tr ', ' '\n\n')" \
+        TABLE="$TABLE" FWMARK="$FWMARK" PREF_LOCAL="$PREF_LOCAL" \
+        PREF_WG="$PREF_WG" PREF_MAIN="$PREF_MAIN" DOMAIN_IPSET="$DOMAIN_IPSET" \
+        "$script" "$2"
+        return $?
+    fi
     MODULE="$MODULE" WG="$WG" IF_NAME="$IF_NAME" "$script" "$2"
 }

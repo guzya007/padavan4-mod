@@ -731,6 +731,7 @@ static int wg_requires_safe_login(const char *name)
 		!strncmp(name, "vpnc_awg_", 9) || !strncmp(name, "vpns_awg_", 9) ||
 		!strcmp(name, "vpnc_clients_allowed") || !strcmp(name, "vpnc_clients") ||
 		!strcmp(name, "scripts.vpnc_remote_network.list") || !strcmp(name, "scripts.vpnc_exclude_network.list") ||
+		!strcmp(name, "scripts.vpnc_domains.list") ||
 		!strcmp(name, "scripts.vpnc_post_script.sh") || !strcmp(name, "scripts.vpns_post_script.sh");
 }
 #endif
@@ -3301,7 +3302,7 @@ static int ej_wireguard_config(int eid, webs_t wp, int argc, char **argv)
 	};
 #endif
 	static const char *wg_files[] = {
-		"remote_network.list", "exclude_network.list", "post_script.sh", NULL
+		"remote_network.list", "exclude_network.list", "domains.list", "post_script.sh", NULL
 	};
 	char name[96];
 	char path[160];
@@ -3319,6 +3320,9 @@ static int ej_wireguard_config(int eid, webs_t wp, int argc, char **argv)
 			first = 0;
 		}
 		if (!strcmp(role, "vpnc")) {
+#if defined(USE_IPSET)
+			websWrite(wp, ",\"ipset_supported\":true");
+#endif
 			websWrite(wp, ",\"lan_clients\":");
 			wg_lan_clients(wp);
 		}
@@ -3330,7 +3334,7 @@ static int ej_wireguard_config(int eid, webs_t wp, int argc, char **argv)
 		}
 #endif
 		for (i = 0; wg_files[i]; i++) {
-			if (!strcmp(role, "vpns") && i < 2)
+			if (!strcmp(role, "vpns") && strcmp(wg_files[i], "post_script.sh"))
 				continue;
 			snprintf(name, sizeof(name), "scripts.%s_%s", role, wg_files[i]);
 			snprintf(path, sizeof(path), "%s/%s_%s", STORAGE_SCRIPTS_DIR, role, wg_files[i]);

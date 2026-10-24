@@ -65,14 +65,9 @@ function showLoading(seconds, flag){
 	htmlbodyforIE[0].style.overflow = "hidden";
 
 	winW_H();
-	var blockmarginTop;
-	var sheight = document.documentElement.scrollHeight;
-	var cheight = document.documentElement.clientHeight
-
-	blockmarginTop = (navigator.userAgent.indexOf("Safari")>=0)?(sheight-cheight<=0)?200:sheight-cheight+200:document.documentElement.scrollTop+200;
-
-	//Lock modified it for Safari4 display issue.
-	$("loadingBlock").style.marginTop = blockmarginTop+"px";
+	// Page height is not a viewport offset. On long forms the old Safari
+	// workaround (also used by Chrome) placed the progress bar below the screen.
+	$("loadingBlock").style.marginTop = Math.min(200, Math.round(document.documentElement.clientHeight / 3))+"px";
 	$("Loading").style.width = winW+"px";
 	$("Loading").style.height = winH+"px";
 
@@ -129,4 +124,3 @@ function hideLoading(flag){
 	enableCheckChangedStatus();
 	$("Loading").style.visibility = "hidden";
 }
-

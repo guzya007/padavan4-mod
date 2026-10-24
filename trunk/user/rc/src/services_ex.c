@@ -553,6 +553,10 @@ start_dns_dhcpd(int is_ap_mode)
 #endif
 
 	fprintf(fp, "conf-file=%s/dnsmasq.conf\n", storage_dir);
+#if defined(APP_WIREGUARD) && defined(USE_IPSET)
+	if (is_dns_used)
+		wireguard_dnsmasq_config(fp);
+#endif
 	fclose(fp);
 	if (is_dns_used)
 		fill_dnsmasq_servers();

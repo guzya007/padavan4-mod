@@ -719,6 +719,7 @@
 			{"vpnc_clients_allowed", "", NULL, EVM_RESTART_VPNCLI},
 			{"vpnc_clients", "", NULL, FALSE},
 			{"scripts.vpnc_remote_network.list", "File", NULL, EVM_RESTART_VPNCLI},
+			{"scripts.vpnc_domains.list", "File", NULL, EVM_RESTART_VPNCLI|EVM_RESTART_DHCPD},
 			{"scripts.vpnc_exclude_network.list", "File", NULL, EVM_RESTART_VPNCLI},
 			{"scripts.vpnc_post_script.sh", "File", NULL, EVM_RESTART_VPNCLI|EVM_BLOCK_UNSAFE},
 			{"scripts.vpns_post_script.sh", "File", NULL, EVM_RESTART_VPNSVR|EVM_BLOCK_UNSAFE},
