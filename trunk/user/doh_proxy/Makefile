@@ -11,11 +11,17 @@ PKG_HASH:=d8de8b5e42b46088c8aa5e515e2326a3f3e3d65caaae8e37aec801a98cfa592e
 include $(INCLUDE_DIR)/package.mk
 include $(INCLUDE_DIR)/cmake.mk
 
+# Resolve libcurl's indirect shared-library dependencies from the firmware stage.
+TARGET_LDFLAGS += -Wl,-rpath-link,$(STAGING_DIR)/lib
+
 CMAKE_BINARY_SUBDIR:=build
 CMAKE_OPTIONS += -DCMAKE_DISABLE_FIND_PACKAGE_Git=ON -DSW_VERSION=git-0ba0525 \
 	-DUSE_CLANG_TIDY=OFF -DHAVE_SD_DAEMON_H=OFF
 
 $(eval $(call BuildPackage,https_dns_proxy))
+
+# Refresh cached CMake linker flags when this recipe changes.
+$(STAMP_CONFIGURED): Makefile
 
 romfs:
 	$(INSTALL_DIR) $(ROMFSDIR)/usr/sbin $(ROMFSDIR)/usr/bin
