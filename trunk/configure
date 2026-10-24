@@ -273,8 +273,28 @@ if [ "$CONFIG_FIRMWARE_INCLUDE_XFRM" != "y" ] ; then
 fi
 fi
 ############################ IPSET ####################################
-if [ "$CONFIG_FIRMWARE_INCLUDE_IPSET" != "y" ] ; then
+if [ "$CONFIG_FIRMWARE_INCLUDE_IPSET" != "y" ] && [ "$CONFIG_FIRMWARE_INCLUDE_D2K" != "y" ] ; then
         func_disable_kernel_param "CONFIG_NETFILTER_NETLINK"
+fi
+############################# D2K #####################################
+if [ "$CONFIG_FIRMWARE_INCLUDE_D2K" = "y" ]; then
+	if [ "$CONFIG_FIRMWARE_INCLUDE_D2K_TELEGRAM" = "y" ] && [ "$CONFIG_FIRMWARE_INCLUDE_IPSET" != "y" ]; then
+		echo "D2K Telegram requires CONFIG_FIRMWARE_INCLUDE_IPSET=y in the template."
+		exit 1
+	fi
+	for param in CONFIG_NETFILTER_NETLINK CONFIG_NETFILTER_NETLINK_QUEUE \
+		CONFIG_NF_CONNTRACK_MARK CONFIG_NF_CONNTRACK_EVENTS \
+		CONFIG_NF_CT_NETLINK CONFIG_NETFILTER_XT_TARGET_NFQUEUE \
+		CONFIG_NETFILTER_XT_MATCH_CONNBYTES CONFIG_NETFILTER_XT_MATCH_ADDRTYPE \
+		CONFIG_NETFILTER_XT_MATCH_COMMENT CONFIG_NETFILTER_XT_MARK \
+		CONFIG_NETFILTER_XT_CONNMARK CONFIG_NETFILTER_XT_MATCH_MULTIPORT \
+		CONFIG_NETFILTER_XT_MATCH_CONNTRACK CONFIG_IP_NF_MANGLE; do
+		func_enable_kernel_param "$param"
+	done
+	[ "$CONFIG_IPV6" != "y" ] || func_enable_kernel_param "CONFIG_IP6_NF_MANGLE" "m"
+	for param in CONFIG_ASH_CMDCMD CONFIG_MKTEMP CONFIG_READLINK CONFIG_FEATURE_READLINK_FOLLOW; do
+		func_enable_busybox_param "$param"
+	done
 fi
 ############################# QOS #####################################
 if [ "$CONFIG_FIRMWARE_INCLUDE_QOS" != "y" ] ; then

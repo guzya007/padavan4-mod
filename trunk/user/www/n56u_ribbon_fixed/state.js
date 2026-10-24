@@ -382,8 +382,8 @@ function show_banner(L3){
 	show_top_status();
 }
 
-var tabtitle = new Array(20);
-var tablink = new Array(20);
+var tabtitle = new Array(21);
+var tablink = new Array(21);
 tabtitle[0] = new Array("", "<#menu5_1_1#>", "<#menu5_1_2#>", "<#menu5_1_3#>", "<#menu5_1_4#>", "<#menu5_1_5#>", "<#menu5_1_6#>");
 tabtitle[1] = new Array("", "<#menu5_1_1#>", "<#menu5_1_2#>", "<#menu5_1_3#>", "<#menu5_1_4#>", "<#menu5_1_5#>", "<#menu5_1_6#>");
 tabtitle[2] = new Array("", "<#menu5_2_1#>", "<#menu5_2_2#>", "<#menu5_2_3#>", "<#menu5_2_4#>", "<#menu5_2_5#>", "<#menu5_2_6#>");
@@ -584,6 +584,20 @@ if (found_app_sqm()){
 if (found_app_frp()){
 	menuL2_link.push(frp_array[1]);
 } else menuL2_link.push("");
+
+// Optional service tabs share one sidebar entry; existing indices stay intact.
+tabtitle[20] = new Array("");
+tablink[20] = new Array("");
+if (found_app_doh()) {
+	tabtitle[20].push("DoH");
+	tablink[20].push("Advanced_Services_DoH.asp");
+}
+if (found_app_d2k()) {
+	tabtitle[20].push("D2K");
+	tablink[20].push("Advanced_Services_D2K.asp");
+}
+menuL2_title.push(tablink[20].length > 1 ? "<#Menu_Services#>" : "");
+menuL2_link.push(tablink[20].length > 1 ? tablink[20][1] : "");
 
 //Level 1 Menu in Gateway, Router mode
 menuL1_title = new Array("", "<#menu1#>", "", "<#menu2#>", "<#menu6#>", "<#menu4#>", "<#menu5_8#>", "<#menu5#>");

@@ -28,6 +28,7 @@ LIBS_INCLUDE_LIBUSB_1=n
 LIBS_INCLUDE_BOOST=n
 LIBS_INCLUDE_LIBCARES=n
 LIBS_INCLUDE_LIBCURL=n
+LIBS_INCLUDE_NGHTTP2=n
 LIBS_INCLUDE_LIBEV=n
 LIBS_INCLUDE_LIBEVENT=n
 LIBS_INCLUDE_LIBICONV=n
@@ -57,6 +58,19 @@ endif
 
 ifeq ($(CONFIG_FIRMWARE_INCLUDE_OPENVPN),y)
 LIBS_INCLUDE_LIBLZO=y
+endif
+
+ifeq ($(CONFIG_FIRMWARE_INCLUDE_DOH),y)
+LIBS_INCLUDE_LIBCARES=y
+LIBS_INCLUDE_LIBCURL=y
+LIBS_INCLUDE_LIBEV=y
+LIBS_INCLUDE_NGHTTP2=y
+endif
+
+ifeq ($(CONFIG_FIRMWARE_INCLUDE_D2K),y)
+ifeq ($(CONFIG_FIRMWARE_INCLUDE_D2K_TELEGRAM),y)
+LIBS_INCLUDE_LIBCURL=y
+endif
 endif
 
 ifeq ($(CONFIG_FIRMWARE_INCLUDE_SHADOWSOCKS),y)
@@ -188,6 +202,7 @@ dir_y						+= libnfnetlink
 dir_y						+= libssl
 dir_y						+= libz
 dir_$(LIBS_INCLUDE_BOOST)			+= boost
+dir_$(LIBS_INCLUDE_NGHTTP2)			+= libnghttp2
 dir_$(LIBS_INCLUDE_LIBCURL)			+= libcurl
 dir_$(LIBS_INCLUDE_LIBEV)			+= libev
 dir_$(LIBS_INCLUDE_LIBICONV)			+= libiconv
@@ -228,6 +243,10 @@ dir_y						+= libtirpc
 endif
 
 all: $(patsubst %,%_only,$(dir_y))
+
+ifeq ($(LIBS_INCLUDE_NGHTTP2),y)
+libcurl_only: libnghttp2_only
+endif
 
 romfs: $(patsubst %,%_romfs,$(dir_y))
 

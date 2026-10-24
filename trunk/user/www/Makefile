@@ -193,6 +193,12 @@ endif
 ifneq ($(CONFIG_FIRMWARE_INCLUDE_SMARTDNS),y)
 	rm -f $(INSTALLDIR)/www/Advanced_smartdns.asp
 endif
+ifneq ($(CONFIG_FIRMWARE_INCLUDE_DOH),y)
+	rm -f $(ROMFS_DIR)/www/Advanced_Services_DoH.asp
+endif
+ifneq ($(CONFIG_FIRMWARE_INCLUDE_D2K),y)
+	rm -f $(ROMFS_DIR)/www/Advanced_Services_D2K.asp
+endif
 ifeq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_SOFTETHERVPN_SERVER) $(CONFIG_FIRMWARE_INCLUDE_WIREGUARD) $(CONFIG_FIRMWARE_INCLUDE_AMNEZIAWG)),)
 	rm -f $(INSTALLDIR)/www/vpnsrv.asp
 endif

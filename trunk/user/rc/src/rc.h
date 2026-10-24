@@ -617,6 +617,18 @@ void stop_wireguard(void);
 void start_wireguard(void);
 void restart_wireguard(void);
 #endif
+#if defined(APP_DOH)
+extern int start_doh(void);
+extern void stop_doh(void);
+extern void restart_doh(void);
+#endif
+#if defined(APP_D2K)
+extern void start_d2k(void);
+extern void stop_d2k(void);
+extern void restart_d2k(void);
+extern void reload_d2k(void);
+#endif
+
 #if defined(APP_SMARTDNS)
 void stop_smartdns(void);
 void start_smartdns(void);

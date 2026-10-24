@@ -278,6 +278,31 @@ fill_dnsmasq_servers(void)
 		}
 	}
 
+#if defined(APP_DOH)
+	/* TLS needs a valid clock. Bootstrap only the configured NTP names, not
+	 * general DNS, until the first clock sync. Never disable TLS validation. */
+	if (nvram_match("doh_enable", "1") && nvram_match("doh_mode", "1") &&
+	    nvram_get_int("ntpc_counter") == 0) {
+		char bootstrap[64], key[16];
+		int i;
+		snprintf(bootstrap, sizeof(bootstrap), "%s", nvram_safe_get("doh_bootstrap_dns"));
+		bootstrap[strcspn(bootstrap, ",")] = 0;
+		if (!is_valid_ipv4(bootstrap))
+			strcpy(bootstrap, "1.1.1.1");
+		for (i = 0; i < 2; i++) {
+			const char *host, *p;
+			int valid = 1;
+			snprintf(key, sizeof(key), "ntp_server%d", i);
+			host = nvram_safe_get(key);
+			if (strlen(host) < 3) host = "pool.ntp.org";
+			for (p = host; *p; p++)
+				if (!isalnum((unsigned char)*p) && *p != '.' && *p != '-') valid = 0;
+			if (valid && !is_valid_ipv4(host))
+				fprintf(fp, "server=/%s/%s\n", host, bootstrap);
+		}
+	}
+#endif
+
 	/* add DNS servers (via specific domain) for MAN subnet */
 	wan_dom = nvram_safe_get("wanx_domain");
 	wan_dns = nvram_safe_get("wanx_dns");
@@ -396,6 +421,22 @@ start_dns_dhcpd(int is_ap_mode)
 		fprintf(fp, "addn-hosts=%s/hosts\n", storage_dir);
 		fprintf(fp, "servers-file=%s\n", DNS_SERVERS_FILE);
 		fprintf(fp, "dhcp-hostsfile=%s/dhcp.conf\n", storage_dir);
+#if defined(APP_DOH)
+		if (nvram_match("doh_enable", "1") && nvram_match("doh_mode", "1")) {
+			int i, count = 0;
+			int port = nvram_safe_get_int("doh_listen_port", 5053, 1024, 65530);
+			const char *addr = nvram_match("doh_listen_mode", "1") ? ipaddr : "127.0.0.1";
+			char key[16];
+			for (i = 0; i < 4; i++) {
+				snprintf(key, sizeof(key), "doh_server%d", i);
+				if (!strncmp(nvram_safe_get(key), "https://", 8) && strlen(nvram_safe_get(key)) > 8) {
+					fprintf(fp, "server=%s#%d\n", addr, port + i);
+					count++;
+				}
+			}
+			if (count) fprintf(fp, "no-resolv\n");
+		}
+#endif
 	} else {
 		is_dns_used = 0;
 		fprintf(fp, "cache-size=%d\n", 0);

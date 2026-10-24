@@ -45,11 +45,16 @@ OPENSSL_CIPHERS = \
 	no-afalgeng \
 	no-comp
 
+D2K_TELEGRAM_ENABLED:=$(if $(filter y,$(CONFIG_FIRMWARE_INCLUDE_D2K)),$(CONFIG_FIRMWARE_INCLUDE_D2K_TELEGRAM))
+ifneq ($(D2K_TELEGRAM_ENABLED),y)
+	OPENSSL_CIPHERS += no-threads
+endif
+
 ifneq ($(CONFIG_FIRMWARE_INCLUDE_SSWAN),y)
 	OPENSSL_CIPHERS += no-rc2
 endif
 
-ifneq ($(CONFIG_FIRMWARE_INCLUDE_OPENSSL_EC),y)
+ifeq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_OPENSSL_EC) $(CONFIG_FIRMWARE_INCLUDE_DOH) $(D2K_TELEGRAM_ENABLED)),)
 	OPENSSL_CIPHERS += no-ec
 endif
 
@@ -60,7 +65,6 @@ CONFIGURE_ARGS = \
 	shared \
 	no-legacy \
 	no-module \
-	no-threads \
 	--prefix=/ \
 	--openssldir=/etc/ssl \
 	$(OPENSSL_CIPHERS)

@@ -1,0 +1,96 @@
+Padavan paths and LAN-only panel. Keep the upstream packet engine unchanged.
+The panel has no password: bind non-loopback listeners to br0, failing closed
+if that restriction cannot be installed, even with the firewall disabled.
+
+--- a/files/S99d2k
++++ b/files/S99d2k
+@@ -23 +23 @@
+-PATH=/opt/sbin:/opt/bin:/opt/usr/sbin:/opt/usr/bin:/usr/sbin:/usr/bin:/sbin:/bin
++PATH=/usr/sbin:/usr/bin:/sbin:/bin
+@@ -44,2 +44,2 @@
+-DIR=${D2K_DIR:-/opt/d2k}
+-RELEASE=$DIR
++DIR=${D2K_DIR:-/tmp/d2k}
++RELEASE=${D2K_RELEASE:-/usr/share/d2k}
+@@ -48,2 +48,2 @@
+-BIN=/opt/sbin/d2kc
+-PANELBIN=/opt/sbin/d2kpanel
++BIN=/usr/sbin/d2kc
++PANELBIN=/usr/sbin/d2kpanel
+@@ -51,2 +51,2 @@
+-DPBIN=/opt/sbin/d2kd
+-CONF=$DIR/config
++DPBIN=/usr/sbin/d2kd
++CONF=${D2K_CONFIG:-/etc/storage/d2k/config}
+@@ -85 +85 @@
+-PANEL_LISTEN=127.0.0.1:8090
++PANEL_LISTEN=0.0.0.0:8090
+@@ -190 +190 @@
+-TGBIN=/opt/sbin/d2ktg
++TGBIN=/usr/sbin/d2ktg
+@@ -1369,2 +1369,3 @@
+-            --queue "$QUEUE_NUM" --service /opt/etc/init.d/S99d2k \
++            --queue "$QUEUE_NUM" --service /usr/bin/d2k.sh \
+             --engine-pid "$DP_PID" --controller-pid "$CT_PID" \
++            --telegram-pid "$TG_PID" --telegram-status "$TG_STATUS" \
+--- a/files/d2k-log-maintenance.sh
++++ b/files/d2k-log-maintenance.sh
+@@ -6,2 +6,2 @@
+-DIR=${D2K_DIR:-/opt/d2k}
+-CONF=$DIR/config
++DIR=${D2K_DIR:-/tmp/d2k}
++CONF=${D2K_CONFIG:-/etc/storage/d2k/config}
+--- a/files/d2k-fw-heal.sh
++++ b/files/d2k-fw-heal.sh
+@@ -27,2 +27,2 @@
+-    *:/opt/sbin:*) ;;
+-    *) PATH="/opt/sbin:/opt/bin:/sbin:/usr/sbin:/bin:/usr/bin${PATH:+:}${PATH}" ;;
++    *:/usr/sbin:*) ;;
++    *) PATH="/sbin:/usr/sbin:/bin:/usr/bin${PATH:+:}${PATH}" ;;
+@@ -32 +32 @@
+-INIT_SCRIPT="${INIT_SCRIPT:-/opt/etc/init.d/S99d2k}"
++INIT_SCRIPT="${INIT_SCRIPT:-/usr/bin/d2k.sh}"
+--- a/files/d2k-tg-watchdog.sh
++++ b/files/d2k-tg-watchdog.sh
+@@ -5 +5 @@
+-PATH=/opt/sbin:/opt/bin:/opt/usr/sbin:/opt/usr/bin:/usr/sbin:/usr/bin:/sbin:/bin
++PATH=/usr/sbin:/usr/bin:/sbin:/bin
+@@ -8,2 +8,2 @@
+-DIR=/opt/d2k
+-INIT=/opt/etc/init.d/S99d2k
++DIR=${D2K_DIR:-/tmp/d2k}
++INIT=${INIT:-/usr/bin/d2k.sh}
+@@ -22 +22,2 @@
+-    if [ -x "$DIR/d2k-tg-firewall.sh" ]; then "$DIR/d2k-tg-firewall.sh" heal >/dev/null 2>&1 || true; fi
++    FW=${D2K_RELEASE:-/usr/share/d2k}/d2k-tg-firewall.sh
++    if [ -x "$FW" ]; then "$FW" heal >/dev/null 2>&1 || true; fi
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -1265 +1265 @@
+-	ar rcs $@ $(UDP_ENGINE_OBJ)
++	$(AR) rcs $@ $(UDP_ENGINE_OBJ)
+--- a/panel/main.c
++++ b/panel/main.c
+@@ -256,2 +256,12 @@
+         (void)setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes);
++        /* Padavan: non-loopback control is LAN-only, independent of firewall. */
++        if (strcmp(host, "127.0.0.1") && strcmp(host, "::1") && strcmp(host, "localhost")) {
++            const char lan[] = "br0";
++            if (setsockopt(listener, SOL_SOCKET, SO_BINDTODEVICE, lan, sizeof lan) != 0) {
++                say("cannot restrict panel to LAN: %s", strerror(errno));
++                close(listener);
++                listener = -1;
++                break;
++            }
++        }
+         if (bind(listener, ai->ai_addr, ai->ai_addrlen) == 0 && listen(listener, 16) == 0) { break; }
+@@ -357,2 +367,2 @@
+-        .update_state_path = "/opt/d2k/state/update.json",
+-        .updater_path = "/opt/d2k/d2k-update.sh",
++        .update_state_path = NULL,
++        .updater_path = NULL,
+--- a/core/d2kc.c
++++ b/core/d2kc.c
+@@ -444 +444 @@
+-    d2k_diag_sample(diagnostics,now,&counts,"/proc","/opt/d2k/run");
++    d2k_diag_sample(diagnostics,now,&counts,"/proc","/tmp/d2k/run");

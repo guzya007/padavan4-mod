@@ -502,6 +502,13 @@ ntpc_updated_main(int argc, char *argv[])
 
 	ntpc_counter = nvram_get_int("ntpc_counter");
 	nvram_set_int_temp("ntpc_counter", ntpc_counter + 1);
+#if defined(APP_DOH)
+	if (ntpc_counter == 0 && nvram_match("doh_enable", "1")) {
+		notify_rc(RCN_RESTART_DOH);
+		/* Remove the temporary plaintext NTP bootstrap from DNSMasq. */
+		notify_rc(RCN_RESTART_DHCPD);
+	}
+#endif
 
 	offset = getenv("offset");
 	if (offset) {

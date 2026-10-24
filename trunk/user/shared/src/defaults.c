@@ -1046,6 +1046,20 @@ struct nvram_pair router_defaults[] = {
 	{ "telnetd", "0" },
 	{ "sshd_enable", "1" },
 	{ "wins_enable", "0" },
+#if defined(APP_DOH)
+	{ "doh_enable", "0" },
+	{ "doh_server0", "https://dns.google/dns-query" },
+	{ "doh_server1", "" },
+	{ "doh_server2", "" },
+	{ "doh_server3", "" },
+	{ "doh_bootstrap_dns", "1.1.1.1,8.8.8.8" },
+	{ "doh_listen_port", "5053" },
+	{ "doh_listen_mode", "0" },
+	{ "doh_mode", "1" },
+#endif
+#if defined(APP_D2K)
+	{ "d2k_enable", "0" },
+#endif
 	{ "lltd_enable", "1" },
 	{ "adsc_enable", "0" },
 	{ "crond_enable", "1" },

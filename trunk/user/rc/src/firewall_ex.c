@@ -2348,6 +2348,9 @@ start_firewall_ex(void)
 		doSystem("%s update", opt_iptables_script);
 
 	/* enable IPv4 forward */
+#if defined(APP_D2K)
+	reload_d2k();
+#endif
 #if defined(APP_WIREGUARD)
 	update_wireguard_client();
 #endif

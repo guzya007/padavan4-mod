@@ -532,6 +532,56 @@ void update_adb(void){
 }
 #endif
 
+#if defined(APP_DOH)
+void stop_doh(void)
+{
+	eval("/usr/bin/doh_proxy.sh", "stop");
+}
+
+int start_doh(void)
+{
+	if (!get_ap_mode() && nvram_match("doh_enable", "1"))
+		return eval("/usr/bin/doh_proxy.sh", "start");
+	return 0;
+}
+
+void restart_doh(void)
+{
+	stop_doh();
+	start_doh();
+}
+#endif
+
+#if defined(APP_D2K)
+void stop_d2k(void)
+{
+	eval("/usr/bin/d2k.sh", "stop");
+}
+
+void start_d2k(void)
+{
+	if (!get_ap_mode() && nvram_match("d2k_enable", "1"))
+		eval("/usr/bin/d2k.sh", "start");
+}
+
+void restart_d2k(void)
+{
+	stop_d2k();
+	start_d2k();
+}
+
+void reload_d2k(void)
+{
+	/* Restore only our rules after rc rebuilds mangle/nat. Keep learned state. */
+	if (!get_ap_mode() && nvram_match("d2k_enable", "1")) {
+		if (pids("d2kd"))
+			eval("/usr/bin/d2k.sh", "reapply");
+		if (pids("d2ktg"))
+			eval("/usr/bin/d2k.sh", "telegram-reapply");
+	}
+}
+#endif
+
 #if defined(APP_SMARTDNS)
 void stop_smartdns(void){
 	eval("/usr/bin/smartdns.sh","stop");
@@ -789,6 +839,9 @@ doSystem("/usr/sbin/skipd -d /etc/storage/db");
 #if defined(APP_DNSFORWARDER)
 	start_dnsforwarder();
 #endif
+#if defined(APP_D2K)
+	start_d2k();
+#endif
 #if defined(APP_TTYD)
 	start_ttyd();
 #endif
@@ -815,6 +868,12 @@ doSystem("/usr/sbin/skipd -d /etc/storage/db");
 void
 stop_services(int stopall)
 {
+#if defined(APP_D2K)
+	stop_d2k();
+#endif
+#if defined(APP_DOH)
+	stop_doh();
+#endif
 	if (stopall) {
 		stop_telnetd();
 #if defined (APP_SSHD)

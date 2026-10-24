@@ -766,6 +766,9 @@ init_router(void)
 	if (log_remote)
 		start_logger(1);
 
+#if defined(APP_DOH)
+	start_doh();
+#endif
 	start_dns_dhcpd(is_ap_mode);
 #if defined (APP_SMBD) || defined (APP_NMBD)
 	start_wins();
@@ -1289,6 +1292,18 @@ handle_notifications(void)
 			if (get_ap_mode() || has_wan_ip4(0))
 				notify_run_detect_internet(2);
 		}
+#if defined(APP_DOH)
+		else if (strcmp(entry->d_name, RCN_RESTART_DOH) == 0)
+		{
+			restart_doh();
+		}
+#endif
+#if defined(APP_D2K)
+		else if (strcmp(entry->d_name, RCN_RESTART_D2K) == 0)
+		{
+			restart_d2k();
+		}
+#endif
 		else if (strcmp(entry->d_name, RCN_RESTART_DHCPD) == 0)
 		{
 			if (get_ap_mode())

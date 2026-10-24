@@ -701,6 +701,9 @@ full_restart_lan(void)
 	stop_networkmap();
 	stop_upnp();
 	stop_vpn_server();
+#if defined(APP_D2K)
+	stop_d2k();
+#endif
 	stop_dns_dhcpd();
 	stop_lan(is_ap_mode);
 
@@ -728,6 +731,9 @@ full_restart_lan(void)
 #endif
 
 	/* restart dns relay and dhcp server */
+#if defined(APP_DOH)
+	restart_doh();
+#endif
 	start_dns_dhcpd(is_ap_mode);
 
 	if (!is_ap_mode) {
@@ -760,6 +766,9 @@ full_restart_lan(void)
 
 	start_infosvr();
 	start_lltd();
+#if defined(APP_D2K)
+	start_d2k();
+#endif
 
 	/* start ARP network scanner */
 	start_networkmap(1);

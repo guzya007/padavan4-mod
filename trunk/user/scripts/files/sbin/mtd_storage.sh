@@ -191,6 +191,9 @@ func_reset()
 
 func_fill()
 {
+	if [ -x /usr/bin/d2k.sh ]; then
+		/usr/bin/d2k.sh config
+	fi
 	dir_httpssl="$dir_storage/https"
 	dir_dnsmasq="$dir_storage/dnsmasq"
 	dir_ovpnsvr="$dir_storage/openvpn/server"

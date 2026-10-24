@@ -26,17 +26,23 @@ CONFIGURE_ARGS += \
 	--disable-debug \
 	--disable-docs \
 	--without-libidn2 \
-	--without-nghttp2 \
 	--without-libssh2 \
 	--without-libpsl \
 	--without-zstd \
 	--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
 	--with-zlib=$(STAGING_DIR) \
 	--with-openssl=$(STAGING_DIR)
+ifeq ($(CONFIG_FIRMWARE_INCLUDE_DOH),y)
+CONFIGURE_ARGS += --with-nghttp2=$(STAGING_DIR)
+else
+CONFIGURE_ARGS += --without-nghttp2
+endif
+D2K_TELEGRAM_ENABLED:=$(if $(filter y,$(CONFIG_FIRMWARE_INCLUDE_D2K)),$(CONFIG_FIRMWARE_INCLUDE_D2K_TELEGRAM))
+
 $(eval $(call BuildPackage,curl))
 
 romfs:
-ifeq ($(CONFIG_FIRMWARE_INCLUDE_CURL),y)
+ifneq ($(filter y,$(CONFIG_FIRMWARE_INCLUDE_CURL) $(D2K_TELEGRAM_ENABLED)),)
 	$(INSTALL_DIR) $(ROMFSDIR)/usr/bin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/bin/curl $(ROMFSDIR)/usr/bin/
 endif

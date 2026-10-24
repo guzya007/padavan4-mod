@@ -318,6 +318,10 @@ write_textarea_to_file(const char* value, const char* dir_name, const char* file
 
 	snprintf(temp_path, sizeof(temp_path), "%s/.%s", "/tmp", file_name);
 	snprintf(real_path, sizeof(real_path), "%s/%s", dir_name, file_name);
+#if defined(APP_D2K)
+	if (!strcmp(dir_name, "/etc/storage/d2k") && !strcmp(file_name, "config"))
+		file_type = 4; /* private config, not a PEM key/certificate */
+#endif
 
 	if (file_type == 2) {
 		if (strlen(value) < 3) {
@@ -349,7 +353,7 @@ write_textarea_to_file(const char* value, const char* dir_name, const char* file
 				doSystem ("[ -d /home/admin/.ssh ] || mkdir -p -m 700 /home/admin/.ssh");
 				doSystem("cp -f %s %s", real_path, "/home/admin/.ssh");
 			}
-			else if (file_type == 2)
+			else if (file_type == 2 || file_type == 4)
 				chmod(real_path, 0600);
 			else if (file_type == 1)
 				chmod(real_path, 0755);
@@ -704,6 +708,26 @@ ej_dump(int eid, webs_t wp, int argc, char **argv)
 
 	ret = 0;
 
+#if defined(APP_D2K)
+	if (!strcmp(file, "d2kconf.config")) {
+		FILE *fp;
+		int c;
+		/* Shell configuration may contain relay secrets and HTML. */
+		if (!get_login_safe()) return 0;
+		fp = fopen("/etc/storage/d2k/config", "r");
+		if (!fp) return 0;
+		while ((c = fgetc(fp)) != EOF) {
+			if (c == '&') ret += fprintf(wp, "&amp;");
+			else if (c == '<') ret += fprintf(wp, "&lt;");
+			else if (c == '>') ret += fprintf(wp, "&gt;");
+			else ret += fprintf(wp, "%c", c);
+		}
+		fclose(fp);
+		fflush(wp);
+		return ret;
+	}
+#endif
+
 	if (strncmp(file, "httpssl.", 8)==0)
 		snprintf(filename, sizeof(filename), "%s/%s", STORAGE_HTTPSSL_DIR, file+8);
 	else if (strncmp(file, "ovpnsvr.", 8)==0)
@@ -751,6 +775,10 @@ validate_cgi(webs_t wp, int sid)
 			continue;
 #endif
 		if ((value = websGetVar(wp, name, NULL))) {
+#if defined(APP_D2K)
+			if (!get_login_safe() && (!strcmp(name, "d2k_enable") || !strcmp(name, "d2kconf.config")))
+				continue;
+#endif
 			if (strcmp(v->longname, "Group") && strcmp(v->longname, "File"))
 				nvram_set(v->name, value);
 		}
@@ -894,6 +922,10 @@ validate_asp_apply(webs_t wp, int sid)
 		value = websGetVar(wp, name, NULL);
 		if (!value)
 			continue;
+#if defined(APP_D2K)
+		if (!get_login_safe() && (!strcmp(name, "d2k_enable") || !strcmp(name, "d2kconf.config")))
+			continue;
+#endif
 #if defined(APP_WIREGUARD)
 		/* Explicit guard: this tree's legacy EVM_BLOCK_UNSAFE exceeds u64. */
 		if (!get_login_safe() && wg_requires_safe_login(name))
@@ -914,7 +946,20 @@ validate_asp_apply(webs_t wp, int sid)
 			if (!strncmp(v->name, "dnsmasq.", 8)) {
 				if (write_textarea_to_file(value, STORAGE_DNSMASQ_DIR, file_name))
 					restart_needed_bits |= event_mask;
-			} else if (!strncmp(v->name, "scripts.", 8)) {
+			}
+#if defined(APP_D2K)
+			else if (!strcmp(v->name, "d2kconf.config")) {
+				mode_t old_umask = umask(077);
+				mkdir("/etc/storage/d2k", 0700);
+				if (strlen(value) <= 16384 && write_textarea_to_file(value, "/etc/storage/d2k", "config")) {
+					chmod("/etc/storage/d2k/config", 0600);
+					restart_needed_bits |= event_mask;
+					eval("/sbin/mtd_storage.sh", "save");
+				}
+				umask(old_umask);
+			}
+#endif
+			else if (!strncmp(v->name, "scripts.", 8)) {
 				if (write_textarea_to_file(value, STORAGE_SCRIPTS_DIR, file_name))
 					restart_needed_bits |= event_mask;
 				if (!strcmp(file_name, "ap_script.sh"))
@@ -2849,6 +2894,17 @@ ej_firmware_caps_hook(int eid, webs_t wp, int argc, char **argv)
 	websWrite(wp, "function found_app_wg() { return 1;}\nfunction found_app_awg() { return 1;}\n");
 #else
 	websWrite(wp, "function found_app_wg() { return found_app_wireguard();}\nfunction found_app_awg() { return 0;}\n");
+#endif
+
+#if defined(APP_DOH)
+	websWrite(wp, "function found_app_doh() { return 1;}\n");
+#else
+	websWrite(wp, "function found_app_doh() { return 0;}\n");
+#endif
+#if defined(APP_D2K)
+	websWrite(wp, "function found_app_d2k() { return 1;}\n");
+#else
+	websWrite(wp, "function found_app_d2k() { return 0;}\n");
 #endif
 	websWrite(wp,
 		"function support_ipv6() { return %d;}\n"
