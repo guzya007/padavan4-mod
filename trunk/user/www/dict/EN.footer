@@ -2084,3 +2084,4 @@ AWG_ErrorEndpoint=routing to the VPN server
 AWG_ErrorRoutes=VPN route setup
 AWG_ErrorFirewall=firewall and client selection setup
 AWG_ErrorDNS=VPN DNS setup
+AWG_StatusUnknown=Status unavailable

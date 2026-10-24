@@ -3428,9 +3428,9 @@ static int wg_status_json(webs_t wp, const char *iface)
 	char command[128], line[512], endpoint[128] = "", name[32];
 	const char *state, *error = "", *role = !strcmp(iface, "wg0") ? "vpnc" : "vpns";
 	unsigned long long handshake = 0, rx = 0, tx = 0, a, b;
-	time_t now = time(NULL);
+	time_t now;
 	FILE *fp;
-	int i, enabled, running, client = !strcmp(role, "vpnc");
+	int i, enabled, running, available = 1, client = !strcmp(role, "vpnc");
 	snprintf(name, sizeof(name), "%s_enable", role);
 	enabled = nvram_match(name, "1");
 	snprintf(name, sizeof(name), "%s_type", role);
@@ -3445,30 +3445,33 @@ static int wg_status_json(webs_t wp, const char *iface)
 			while (fgets(line, sizeof(line), fp))
 				if (sscanf(line, "%*s %llu", &a) == 1 && a > handshake)
 					handshake = a;
-			pclose(fp);
-		}
+			if (pclose(fp) != 0) available = 0;
+		} else available = 0;
 		snprintf(command, sizeof(command), "/usr/bin/wg show %s transfer 2>/dev/null", iface);
 		fp = popen(command, "r");
 		if (fp) {
 			while (fgets(line, sizeof(line), fp))
 				if (sscanf(line, "%*s %llu %llu", &a, &b) == 2) { rx += a; tx += b; }
-			pclose(fp);
-		}
+			if (pclose(fp) != 0) available = 0;
+		} else available = 0;
 		if (client) {
 			snprintf(command, sizeof(command), "/usr/bin/wg show %s endpoints 2>/dev/null", iface);
 			fp = popen(command, "r");
 			if (fp) {
 				if (fgets(line, sizeof(line), fp)) sscanf(line, "%*s %127s", endpoint);
-				pclose(fp);
-			}
+				if (pclose(fp) != 0) available = 0;
+			} else available = 0;
 		}
 	}
+	/* Read time after wg: a handshake can complete while the commands run. */
+	now = time(NULL);
 	if (client && enabled && nvram_match("vpnc_state_t", "3")) {
 		for (i = 0; stages[i]; i++)
 			if (nvram_match("vpnc_wg_error_t", stages[i])) { error = stages[i]; break; }
 		state = "error";
 	} else if (!enabled) state = "disabled";
 	else if (!running) state = "stopped";
+	else if (!available) state = "unknown";
 	else if (!client) state = "running";
 	else if (handshake && now >= 0 && handshake <= (unsigned long long)now &&
 		(unsigned long long)now - handshake < 300) state = "connected";

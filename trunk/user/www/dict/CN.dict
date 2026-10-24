@@ -2091,3 +2091,4 @@ AWG_ErrorEndpoint=设置 VPN 服务器路由
 AWG_ErrorRoutes=设置 VPN 路由
 AWG_ErrorFirewall=设置防火墙和客户端选择
 AWG_ErrorDNS=设置 VPN DNS
+AWG_StatusUnknown=状态不可用

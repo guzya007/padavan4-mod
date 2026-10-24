@@ -81,12 +81,16 @@ function update_vpnc_status(vpnc_state){
 	this.vpnc_state_last = vpnc_state;
 	var enabled = document.form.vpnc_enable[0].checked;
 	var is_wg = document.form.vpnc_type.value === '3';
+	// Native status has one live source. The legacy NVRAM poll can lag behind
+	// a handshake and must not repaint a fresh green badge orange (or vice versa).
+	if (is_wg) vpnc_state = wgClientState === null ? '4' : wgClientState;
 	showhide_div('col_vpnc_state', (vpnc_state == '1' && enabled && !is_wg) ? 1 : 0);
 	var state = document.getElementById('col_vpnc_wg_state');
 	if (state) {
 		state.style.display = is_wg ? '' : 'none';
 		var value = !enabled ? 'disabled' : vpnc_state == '1' ? 'connected' :
-			vpnc_state == '2' ? 'connecting' : vpnc_state == '3' ? 'error' : 'stopped';
+			vpnc_state == '2' ? 'connecting' : vpnc_state == '3' ? 'error' :
+			vpnc_state == '4' ? 'unknown' : 'stopped';
 		state.textContent = wg_state_label(value);
 		state.className = value == 'connected' ? 'label label-success' :
 			value == 'connecting' ? 'label label-warning' : value == 'error' ? 'label label-important' : 'label';

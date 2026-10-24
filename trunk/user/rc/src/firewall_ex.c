@@ -1092,6 +1092,13 @@ ipt_filter_rules(char *man_if, char *wan_if, char *lan_if, char *lan_ip,
 		fprintf(fp, "-A %s%s -o %s -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu\n", dtype, " !", lan_if);
 	}
 
+#if defined(APP_WIREGUARD)
+	/* The reverse lookup for a tunnel SYN-ACK uses WAN, not the tunnel MTU.
+	 * Clamp its advertised MSS explicitly before the ESTABLISHED shortcut. */
+	if (i_vpnc_enable && i_vpnc_type == 3)
+		fprintf(fp, "-A %s -i %s -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss %d\n",
+			dtype, IFNAME_CLIENT_WG, nvram_safe_get_int("vpnc_wg_mtu", 1280, 1280, 1420) - 40);
+#endif
 	/* Accept related connections, skip rest of checks */
 	fprintf(fp, "-A %s -m %s %s -j %s\n", dtype, CT_STATE, "ESTABLISHED,RELATED", "ACCEPT");
 
@@ -1604,8 +1611,11 @@ ip6t_filter_rules(char *man_if, char *wan_if, char *lan_if,
 
 	/* Pass related connections, skip rest of checks */
 #if defined(APP_WIREGUARD)
-	if (nvram_match("vpnc_enable", "1") && nvram_match("vpnc_type", "3"))
+	if (nvram_match("vpnc_enable", "1") && nvram_match("vpnc_type", "3")) {
 		fprintf(fp, "-A %s -o %s -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu\n", dtype, IFNAME_CLIENT_WG);
+		fprintf(fp, "-A %s -i %s -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss %d\n",
+			dtype, IFNAME_CLIENT_WG, nvram_safe_get_int("vpnc_wg_mtu", 1280, 1280, 1420) - 60);
+	}
 #endif
 	fprintf(fp, "-A %s -m %s %s -j %s\n", dtype, CT_STATE, "ESTABLISHED,RELATED", "ACCEPT");
 

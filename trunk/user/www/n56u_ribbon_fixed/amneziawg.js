@@ -1,5 +1,6 @@
 /* Native VPN type 3 UI, using padavan-ng's NVRAM names and AWG 3.1 parameters. */
 var wgRole, wgStatusTimer, wgImportSequence = 0;
+var wgClientState = null, wgStatusMode = '', wgStatusGeneration = 0, wgStatusRequest = 0;
 var wgAwgFields = ['jc', 'jmin', 'jmax', 'i1', 'i2', 'i3', 'i4', 'i5',
     'h1', 'h2', 'h3', 'h4', 's1', 's2', 's3', 's4', 'contentpaddingaddition',
     'headerprotectionkey', 'rekeyaftertime', 'rekeytimeout', 'rejectaftertime',
@@ -276,6 +277,12 @@ function wg_init(role) {
 function wg_toggle(role, enabled, selected) {
     if (!found_app_wg()) return;
     var active = enabled && selected;
+    var mode = role + ':' + !!enabled + ':' + !!selected;
+    if (mode !== wgStatusMode) {
+        wgStatusMode = mode;
+        wgStatusGeneration++;
+        wgClientState = null;
+    }
     $j('#tbl_' + role + '_wg, #wg_status').toggle(!!active);
     $j('#tbl_' + role + '_wg').find('input, textarea, select, button').each(function() {
         this.disabled = !active || !login_safe() || this.getAttribute('data-wg-unloaded') === '1';
@@ -436,8 +443,8 @@ function wg_import(input) {
 function wg_state_label(state) {
     var labels = {disabled: '<#AWG_Disabled#>', stopped: '<#AWG_Stopped#>',
         connecting: '<#AWG_Connecting#>', connected: '<#Connected#>',
-        running: '<#AWG_Running#>', error: '<#AWG_StartError#>'};
-    return labels[state] || '<#AWG_StatusError#>';
+        running: '<#AWG_Running#>', error: '<#AWG_StartError#>', unknown: '<#AWG_StatusUnknown#>'};
+    return Object.prototype.hasOwnProperty.call(labels, state) ? labels[state] : '<#AWG_StatusUnknown#>';
 }
 
 function wg_error_label(stage) {
@@ -446,18 +453,32 @@ function wg_error_label(stage) {
         setconf: '<#AWG_ErrorSetconf#>', link_up: '<#AWG_ErrorLinkUp#>',
         sysctl: '<#AWG_ErrorSysctl#>', endpoint: '<#AWG_ErrorEndpoint#>',
         routes: '<#AWG_ErrorRoutes#>', firewall: '<#AWG_ErrorFirewall#>', dns: '<#AWG_ErrorDNS#>'};
-    return labels[stage] || '';
+    return Object.prototype.hasOwnProperty.call(labels, stage) ? labels[stage] : '';
+}
+
+function wg_status_failure() {
+    document.getElementById('wg_status').textContent = '<#AWG_StatusError#>';
+    if (wgRole === 'vpnc') {
+        wgClientState = '4';
+        update_vpnc_status(wgClientState);
+    }
 }
 
 function wg_refresh_status() {
     clearTimeout(wgStatusTimer);
     if (login_safe() && document.getElementById('wg_status') && document.form.elements[wgRole + '_type'].value === '3') {
+        var generation = wgStatusGeneration, request = ++wgStatusRequest, iface = wgRole === 'vpnc' ? 'wg0' : 'wg1';
         $j.ajax({type: 'post', url: '/apply.cgi', dataType: 'json', timeout: 4000,
-            data: {action_mode: ' wg_action ', action: 'status_json', iface: wgRole === 'vpnc' ? 'wg0' : 'wg1'},
+            data: {action_mode: ' wg_action ', action: 'status_json', iface: iface},
             success: function(response) {
-                if (document.form.elements[wgRole + '_type'].value !== '3') return;
-                if (!response || typeof response.state !== 'string') {
-                    document.getElementById('wg_status').textContent = '<#AWG_StatusError#>'; return;
+                if (generation !== wgStatusGeneration || request !== wgStatusRequest || document.form.elements[wgRole + '_type'].value !== '3') return;
+                var states = {disabled: '0', stopped: '0', connecting: '2', connected: '1', error: '3', running: '1', unknown: '4'};
+                if (!response || typeof response.state !== 'string' || !Object.prototype.hasOwnProperty.call(states, response.state) || response.interface !== iface ||
+                    typeof response.endpoint !== 'string' || typeof response.error !== 'string' ||
+                    !['handshake', 'rx', 'tx'].every(function(key) {
+                        return typeof response[key] === 'number' && isFinite(response[key]) && response[key] >= 0;
+                    })) {
+                    wg_status_failure(); return;
                 }
                 var text = wg_state_label(response.state), error = wg_error_label(response.error);
                 if (error) text += ': ' + error;
@@ -467,13 +488,13 @@ function wg_refresh_status() {
                 text += '\nRX: ' + (response.rx || 0) + ' B / TX: ' + (response.tx || 0) + ' B';
                 document.getElementById('wg_status').textContent = text;
                 if (wgRole === 'vpnc') {
-                    var states = {disabled: '0', stopped: '0', connecting: '2', connected: '1', error: '3'};
-                    update_vpnc_status(states[response.state] || '0');
+                    wgClientState = states[response.state];
+                    update_vpnc_status(wgClientState);
                     document.getElementById('col_vpnc_wg_state').title = error;
                 }
             }, error: function() {
-                if (document.form.elements[wgRole + '_type'].value === '3')
-                    document.getElementById('wg_status').textContent = '<#AWG_StatusError#>';
+                if (generation === wgStatusGeneration && request === wgStatusRequest && document.form.elements[wgRole + '_type'].value === '3')
+                    wg_status_failure();
             }
         });
         if (wgRole === 'vpns' && window.location.hash === '#cli') wg_refresh_clients();

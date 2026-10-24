@@ -1808,3 +1808,4 @@ AWG_ErrorEndpoint=маршрутизация до сервера VPN
 AWG_ErrorRoutes=создание маршрутов VPN
 AWG_ErrorFirewall=настройка firewall и выбора клиентов
 AWG_ErrorDNS=настройка DNS через VPN
+AWG_StatusUnknown=Статус недоступен

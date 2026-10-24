@@ -5,6 +5,7 @@
 IF_NAME=wg0
 TABLE=51
 FWMARK=51820
+PREF_LOCAL=5180
 PREF_WG=5182
 PREF_MAIN=5181
 CONF="/tmp/wg0.conf.$$"
@@ -12,13 +13,14 @@ REMOTE_NETWORK_LIST=/etc/storage/vpnc_remote_network.list
 EXCLUDE_NETWORK_LIST=/etc/storage/vpnc_exclude_network.list
 ENDPOINT_STATE=/var/run/wgc.endpoint
 ACTIVE_STATE=/var/run/wgc.active
+LOCAL_RULE="^$PREF_LOCAL:[[:space:]]+from all fwmark (0xca6c|$FWMARK) lookup (main|254) suppress_prefixlength 0[[:space:]]*$"
 trap 'rm -f "$CONF"' EXIT
 
 mkdir -p /var/lock
 exec 9>/var/lock/wgc_watchdog.lock
 if [ "$1" = watchdog ]; then flock -n 9; else flock 9; fi || exit 1
 
-is_started() { [ -f "$ACTIVE_STATE" ] && ip link show "$IF_NAME" >/dev/null 2>&1; }
+is_started() { [ -f "$ACTIVE_STATE" ] && ip link show "$IF_NAME" 2>/dev/null | grep -Eq '<([^>]*,)?UP(,|>)'; }
 set_state() { nvram settmp "vpnc_state_t=$1"; }
 set_error()
 {
@@ -84,10 +86,8 @@ start_fw()
         echo '-A PREROUTING -i br0 -j vpnc_wireguard'
         echo '-A PREROUTING -i wg1 -j vpnc_wireguard'
         for i in $excluded; do echo "-A vpnc_wireguard -d $i -j RETURN"; done
-        for i in 53 123; do
-            echo "-A vpnc_wireguard -p udp --dport $i -j RETURN"
-        done
-        echo '-A vpnc_wireguard -p tcp --dport 53 -j RETURN'
+        # Router/LAN DNS stays local via the exclusions above. Direct external
+        # DNS and NTP from selected clients follow the same policy as other data.
         if [ -n "$clients" ]; then
             for i in $clients; do echo "-A vpnc_wireguard -s $i -j vpnc_wireguard_remote"; done
         else
@@ -124,6 +124,30 @@ start_fw()
     return 0
 }
 
+ensure_routes()
+{
+    local family rules default
+    for family in 4 6; do
+        ip -$family addr show dev "$IF_NAME" scope global 2>/dev/null | grep -q 'inet' || continue
+        rules=$(ip -$family rule show) || return 1
+        # Retain connected/static routes before the marked VPN default. This
+        # also makes strict LAN reverse-path validation resolve back to br0.
+        if ! printf '%s\n' "$rules" | grep -Eq "$LOCAL_RULE"; then
+            # Do not replace another service's rule using our reserved preference.
+            printf '%s\n' "$rules" | grep -q "^$PREF_LOCAL:" && return 1
+            ip -$family rule add fwmark "$FWMARK" table main suppress_prefixlength 0 pref "$PREF_LOCAL" || return 1
+        fi
+        if ! printf '%s\n' "$rules" | grep -Eq "^$PREF_WG:[[:space:]]+from all fwmark (0xca6c|$FWMARK) lookup $TABLE[[:space:]]*$"; then
+            ip -$family rule add fwmark "$FWMARK" table "$TABLE" pref "$PREF_WG" || return 1
+        fi
+        default=0.0.0.0/0; [ "$family" != 6 ] || default=::/0
+        if ! ip -$family route show table "$TABLE" exact "$default" | grep -q "^default dev $IF_NAME\([[:space:]]\|$\)"; then
+            ip -$family route replace default dev "$IF_NAME" table "$TABLE" || return 1
+        fi
+    done
+    return 0
+}
+
 update_endpoint_rule()
 {
     local endpoint family old_family old_endpoint
@@ -132,10 +156,13 @@ update_endpoint_rule()
     family=4; case "$endpoint" in *:*) family=6;; esac
     old_family=; old_endpoint=
     [ ! -f "$ENDPOINT_STATE" ] || read -r old_family old_endpoint < "$ENDPOINT_STATE"
-    [ "$family $endpoint" != "$old_family $old_endpoint" ] || return 0
+    if [ "$family $endpoint" = "$old_family $old_endpoint" ] &&
+        ip -$family rule show to "$endpoint" table main pref "$PREF_MAIN" | grep -q .; then
+        return 0
+    fi
     # Install the new exception first: encrypted packets carry FWMARK too.
     ip -$family rule add to "$endpoint" table main pref "$PREF_MAIN" || return 1
-    if [ -n "$old_endpoint" ]; then
+    if [ -n "$old_endpoint" ] && [ "$family $endpoint" != "$old_family $old_endpoint" ]; then
         ip -$old_family rule del to "$old_endpoint" table main pref "$PREF_MAIN" 2>/dev/null
     fi
     printf '%s %s\n' "$family" "$endpoint" > "$ENDPOINT_STATE"
@@ -155,11 +182,21 @@ stop_wg()
     set_state 0
     nvram unset vpnc_wg_error_t
     stop_fw
-    local family
+    local family endpoint
     for family in 4 6; do
-        while ip -$family rule del pref "$PREF_WG" 2>/dev/null; do :; done
-        while ip -$family rule del pref "$PREF_MAIN" 2>/dev/null; do :; done
+        if ip -$family rule show 2>/dev/null | grep -Eq "$LOCAL_RULE"; then
+            ip -$family rule del fwmark "$FWMARK" table main suppress_prefixlength 0 pref "$PREF_LOCAL" 2>/dev/null
+        fi
+        while ip -$family rule del fwmark "$FWMARK" table "$TABLE" pref "$PREF_WG" 2>/dev/null; do :; done
         ip -$family route flush table "$TABLE" 2>/dev/null
+    done
+    if [ -f "$ENDPOINT_STATE" ]; then
+        read -r family endpoint < "$ENDPOINT_STATE"
+        ip -$family rule del to "$endpoint" table main pref "$PREF_MAIN" 2>/dev/null
+    fi
+    for endpoint in $(nvram get vpnc_dns_t); do
+        family=4; case "$endpoint" in *:*) family=6;; esac
+        while ip -$family rule del to "$endpoint" table "$TABLE" pref "$PREF_WG" 2>/dev/null; do :; done
     done
     rm -f "$ENDPOINT_STATE"
     if [ -f "$ACTIVE_STATE" ]; then
@@ -178,6 +215,8 @@ stop_wg()
 start_wg()
 {
     is_started && return 0
+    # Clean stale policy/DNS state if our interface disappeared or went down.
+    [ ! -f "$ACTIVE_STATE" ] || stop_wg
     local addr mtu endpoint port private public allowed psk keepalive family i dns
     WG_STAGE=config
     nvram unset vpnc_wg_error_t
@@ -232,15 +271,14 @@ start_wg()
     ip link set "$IF_NAME" up || return 1
     WG_STAGE=sysctl
     sysctl -q -w net.ipv4.conf.all.src_valid_mark=1 || return 1
+    # Replies arrive from the tunnel, but their reverse route can use WAN.
+    # Use loose validation only here; retain strict filtering on LAN and WAN.
+    sysctl -q -w "net.ipv4.conf.$IF_NAME.rp_filter=2" || return 1
     WG_STAGE=endpoint
     update_endpoint_rule || return 1
     # Preserve WAN routes and local admin access; only forwarded traffic is marked.
     WG_STAGE=routes
-    for family in 4 6; do
-        ip -$family addr show dev "$IF_NAME" scope global | grep -q 'inet' || continue
-        ip -$family rule add fwmark "$FWMARK" table "$TABLE" pref "$PREF_WG" || return 1
-        ip -$family route replace default dev "$IF_NAME" table "$TABLE" || return 1
-    done
+    ensure_routes || return 1
     WG_STAGE=firewall
     start_fw || return 1
     WG_STAGE=dns
@@ -251,10 +289,15 @@ start_wg()
             family=4
             case "$i" in *:*) family=6;; *) wg_ipv4 "$i" || return 1;; esac
             ip -$family addr show dev "$IF_NAME" scope global | grep -q 'inet' || return 1
+        done
+        # Record all destinations before installation so failed starts clean up
+        # even a partially installed DNS policy. Only publish after success.
+        nvram settmp "vpnc_dns_t=$dns"
+        for i in $dns; do
+            family=4; case "$i" in *:*) family=6;; esac
             # Router-originated resolver traffic is not marked in PREROUTING.
             ip -$family rule add to "$i" table "$TABLE" pref "$PREF_WG" || return 1
         done
-        nvram settmp "vpnc_dns_t=$dns"
         update_resolvconf
     fi
     set_state 2
@@ -277,9 +320,18 @@ watchdog_wg()
     if ! is_started; then
         start_client || return 1
     fi
-    local last now endpoint
+    local last now endpoint family
     WG_STAGE=endpoint
     update_endpoint_rule || { set_error; return 1; }
+    WG_STAGE=routes
+    ensure_routes || { set_error; return 1; }
+    WG_STAGE=dns
+    for endpoint in $(nvram get vpnc_dns_t); do
+        family=4; case "$endpoint" in *:*) family=6;; esac
+        if ! ip -$family rule show to "$endpoint" table "$TABLE" pref "$PREF_WG" | grep -q .; then
+            ip -$family rule add to "$endpoint" table "$TABLE" pref "$PREF_WG" || { set_error; return 1; }
+        fi
+    done
     WG_STAGE=firewall
     start_fw || { set_error; return 1; }
     nvram unset vpnc_wg_error_t
