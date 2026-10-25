@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 depmod_bin="/sbin/depmod"
 
@@ -23,10 +24,20 @@ if [ ! -x "$depmod_bin" ]; then
 	exit 1
 fi
 
-ipset_dir="${ROOTDIR}/build/ipset-7.11/kernel/net/netfilter"
-mkdir -p "${INSTALL_MOD_PATH}/lib/modules/${KERNELRELEASE}/kernel/net/netfilter/ipset"
-cp -f "$ipset_dir/xt_set.ko" "${INSTALL_MOD_PATH}/lib/modules/${KERNELRELEASE}/kernel/net/netfilter"
-cp -f "$ipset_dir/ipset/"*.ko "${INSTALL_MOD_PATH}/lib/modules/${KERNELRELEASE}/kernel/net/netfilter/ipset"
+if [ "$CONFIG_FIRMWARE_INCLUDE_IPSET" = "y" ]; then
+	ipset_dir="${ROOTDIR}/build/ipset-7.11/kernel/net/netfilter"
+	# These are external modules, not installed by the kernel's modules_install.
+	# A missing module must fail packaging, not silently break AWG/Telegram.
+	for module in xt_set ipset/ip_set ipset/ip_set_hash_ip ipset/ip_set_hash_net ipset/ip_set_hash_mac; do
+		if [ ! -s "$ipset_dir/$module.ko" ]; then
+			echo "ERROR: missing IPSet module: $ipset_dir/$module.ko" >&2
+			exit 1
+		fi
+	done
+	mkdir -p "${INSTALL_MOD_PATH}/lib/modules/${KERNELRELEASE}/kernel/net/netfilter/ipset"
+	cp -f "$ipset_dir/xt_set.ko" "${INSTALL_MOD_PATH}/lib/modules/${KERNELRELEASE}/kernel/net/netfilter"
+	cp -f "$ipset_dir/ipset/"*.ko "${INSTALL_MOD_PATH}/lib/modules/${KERNELRELEASE}/kernel/net/netfilter/ipset"
+fi
 
 if [ "$CONFIG_FIRMWARE_INCLUDE_ANTFS" = "y" ] ; then
 	antfs_dir="${ROOTDIR}/build/antfs-07.19"
@@ -35,7 +46,7 @@ if [ "$CONFIG_FIRMWARE_INCLUDE_ANTFS" = "y" ] ; then
 fi
 
 # call depmod
-$depmod_bin -ae -F System.map -b "${INSTALL_MOD_PATH}" -r ${KERNELRELEASE}
+"$depmod_bin" -ae -F System.map -b "${INSTALL_MOD_PATH}" "$KERNELRELEASE"
 
 # clear unneeded depmod files
 rm -f "${INSTALL_MOD_PATH}/lib/modules/${KERNELRELEASE}/modules.alias"

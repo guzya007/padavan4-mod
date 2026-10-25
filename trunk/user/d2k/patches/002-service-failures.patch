@@ -1,0 +1,54 @@
+Do not call omitted Keenetic helpers from the periodic firewall check.
+Roll back partial Telegram redirects on startup failure; never redirect into
+a dead daemon while waiting for the health watchdog to restart it.
+
+--- a/files/d2k-fw-heal.sh
++++ b/files/d2k-fw-heal.sh
+@@ -57,12 +57,5 @@
+-# Правила на месте — выходим молча. Это самый частый случай, и он обязан быть
+-# самым дешёвым. Разгрузку ускорителя (d2k-ppe-deoffload.sh) NDM сносит вместе
+-# с остальным, но её отдельная пропажа очередь не ломает — её возвращаем
+-# точечно, без перестановки правил очереди. ppe-ensure сам ставит только
+-# недостающее и молчит, если цели PPE в прошивке нет.
++# Padavan does not ship the Keenetic DNS/PPE helpers. Nothing to repair
++# when the complete NFQUEUE ruleset is already present.
+ if printf '%s\n' "$state" | grep -q "правила: стоят"; then
+-    "$INIT_SCRIPT" ppe-ensure >/dev/null 2>&1
+-    # DNS роутера (DoH/DoT) — исключение по адресам, которые меняются: сверка
+-    # каждый круг, недостающее ставится, устаревшее снимается (S99d2k).
+-    "$INIT_SCRIPT" dns-ensure >/dev/null 2>&1
+     exit 0
+ fi
+
+--- a/files/S99d2k
++++ b/files/S99d2k
+@@ -1444,5 +1444,11 @@
+     if [ -x "$TG_FIREWALL" ]; then
+-        "$TG_FIREWALL" start || { stop_pidfile "$TG_PID"; write_telegram_status error; return 1; }
++        if ! "$TG_FIREWALL" start; then
++            "$TG_FIREWALL" stop
++            stop_pidfile "$TG_PID"
++            write_telegram_status error
++            say "Telegram: не установить firewall; проверьте модули IPSet/xt_set/REDIRECT"
++            return 1
++        fi
+     else
+         stop_pidfile "$TG_PID" || return 1; write_telegram_status error; say "нет правил Telegram firewall $TG_FIREWALL"; return 1
+     fi
+@@ -1471,5 +1477,8 @@
+ telegram_reapply() {
+     [ "${TG_ENABLED:-0}" = 1 ] || return 0
+-    running "$TG_PID" || return 0
++    if ! running "$TG_PID"; then
++        [ ! -x "$TG_FIREWALL" ] || "$TG_FIREWALL" stop
++        return 0
++    fi
+     [ -x "$TG_FIREWALL" ] && "$TG_FIREWALL" heal
+ }
+
+--- a/files/d2k-tg-watchdog.sh
++++ b/files/d2k-tg-watchdog.sh
+@@ -22,2 +22 @@
+-    FW=${D2K_RELEASE:-/usr/share/d2k}/d2k-tg-firewall.sh
+-    if [ -x "$FW" ]; then "$FW" heal >/dev/null 2>&1 || true; fi
++    "$INIT" tg-heal >/dev/null 2>&1 || true

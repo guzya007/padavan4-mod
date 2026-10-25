@@ -197,7 +197,7 @@ modules_install:
 	@echo "\033[1;34m===> 📦 Installing kernel modules to $(ROMFSDIR)/lib/modules...\033[0m"
 	@mkdir -p $(ROMFSDIR)/lib/modules
 	@if grep -q 'CONFIG_MODULES=y' $(LINUX_CONFIG); then \
-		$(MAKEARCH_KERNEL) -C $(LINUXDIR) INSTALL_MOD_PATH=$(ROMFSDIR) $(DEPMOD) modules_install || \
+		$(MAKEARCH_KERNEL) -C $(LINUXDIR) INSTALL_MOD_PATH=$(ROMFSDIR) DEPMOD="$(DEPMOD)" modules_install || \
 		{ echo "\033[1;31m===> ❌ Module installation failed (error code: $$?)\033[0m"; exit 1; }; \
 	else \
 		echo "\033[1;33m===> ℹ️ Kernel module support disabled in $(LINUX_CONFIG)\033[0m"; \

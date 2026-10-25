@@ -24,6 +24,28 @@ init_storage() {
 	) || fail "Cannot initialize $D2K_CONFIG"
 	chmod 700 /etc/storage/d2k
 	chmod 600 "$D2K_CONFIG"
+	# Translate only comments shipped by the first Padavan version. Never source
+	# or replace the user's values; the new header makes this migration one-shot.
+	if grep -qxF '# D2K: /etc/storage/d2k/config. Existing settings are never overwritten.' "$D2K_CONFIG"; then
+		( umask 077
+		  awk '
+		  BEGIN {
+		    ru["# D2K: /etc/storage/d2k/config. Existing settings are never overwritten."] = "# D2K: /etc/storage/d2k/config. Сохранённые настройки не перезаписываются."
+		    ru["# Apply in the router UI saves this file with the other storage settings."] = "# Кнопка «Применить» сохраняет этот файл вместе с остальными настройками."
+		    ru["# After editing over SSH: /usr/bin/d2k.sh save"] = "# После редактирования через SSH: /usr/bin/d2k.sh save"
+		    ru["# Use literal KEY=value assignments, not shell commands or substitutions."] = "# Используйте строки КЛЮЧ=значение, без команд оболочки и подстановок."
+		    ru["# No authentication! The firmware restricts the listener to the LAN bridge."] = "# Пароля нет! Прошивка ограничивает доступ к панели мостом локальной сети LAN."
+		    ru["# Volatile state avoids wearing out / overflowing the flash settings partition."] = "# Состояние хранится в ОЗУ, чтобы избежать износа и переполнения flash-памяти."
+		    ru["# Optional Telegram tunnel. Uses the upstream third-party relay, not direct DPI"] = "# Необязательный туннель Telegram через сторонний ретранслятор, не прямой"
+		    ru["# bypass. Disabled until explicitly enabled by the owner in the D2K panel."] = "# обход DPI. Выключен до явного включения владельцем в панели D2K."
+		    ru["# Other settings use upstream defaults (PROBE_MARK, FLOWS, PORTS, CONNBYTES,"] = "# Остальные параметры используют значения D2K по умолчанию: PROBE_MARK, FLOWS,"
+		    ru["# HTTP_KEEPALIVE_PORTS, VOICE_PORTS, LOGMAX, LOGKEEP, STATS_SEC)."] = "# PORTS, CONNBYTES, HTTP_KEEPALIVE_PORTS, VOICE_PORTS, LOGMAX, LOGKEEP, STATS_SEC."
+		  }
+		  { print ($0 in ru) ? ru[$0] : $0 }
+		  ' "$D2K_CONFIG" > "$D2K_CONFIG.new.$$" &&
+		  mv -f "$D2K_CONFIG.new.$$" "$D2K_CONFIG"
+		) || { rm -f "$D2K_CONFIG.new.$$"; fail "Cannot translate D2K comments"; }
+	fi
 }
 
 load_modules() {
@@ -77,9 +99,12 @@ stop|status|log-tick|engine-stop|telegram-disable|tg-stop-rules|ppe-ensure) ;;
 esac
 case "$1" in
 telegram-enable|telegram-disable)
-	# The upstream panel changes the config in tmpfs; persist explicit toggles.
-	"$SERVICE" "$1" || exit $?
-	exec /sbin/mtd_storage.sh save
+	# Persist the requested setting even if the service cannot start. Do not
+	# report success when either the service or the flash save failed.
+	"$SERVICE" "$1"
+	rc=$?
+	/sbin/mtd_storage.sh save || exit 1
+	exit "$rc"
 	;;
 esac
 exec "$SERVICE" "$1"

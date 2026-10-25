@@ -1,21 +1,21 @@
-# D2K: /etc/storage/d2k/config. Existing settings are never overwritten.
-# Apply in the router UI saves this file with the other storage settings.
-# After editing over SSH: /usr/bin/d2k.sh save
-# Use literal KEY=value assignments, not shell commands or substitutions.
+# D2K: /etc/storage/d2k/config. Сохранённые настройки не перезаписываются.
+# Кнопка «Применить» сохраняет этот файл вместе с остальными настройками.
+# После редактирования через SSH: /usr/bin/d2k.sh save
+# Используйте строки КЛЮЧ=значение, без команд оболочки и подстановок.
 
 SCHEMA=1
 MODE=apply
 
-# No authentication! The firmware restricts the listener to the LAN bridge.
+# Пароля нет! Прошивка ограничивает доступ к панели мостом локальной сети LAN.
 PANEL_LISTEN=0.0.0.0:8090
 
-# Volatile state avoids wearing out / overflowing the flash settings partition.
+# Состояние хранится в ОЗУ, чтобы избежать износа и переполнения flash-памяти.
 STATE_DIR=/tmp/d2k/state
 QUEUE_NUM=2000
 MARK=0x2d
 
-# Optional Telegram tunnel. Uses the upstream third-party relay, not direct DPI
-# bypass. Disabled until explicitly enabled by the owner in the D2K panel.
+# Необязательный туннель Telegram через сторонний ретранслятор, не прямой
+# обход DPI. Выключен до явного включения владельцем в панели D2K.
 TG_ENABLED=0
 TG_RELAY_URL=wss://85.192.60.175.nip.io/ws
 TG_ENROLL_PORT=9443
@@ -23,5 +23,5 @@ TG_IDENTITY=/etc/storage/d2k/tg.identity
 TG_STATUS=/tmp/d2k/state/telegram.status
 TG_CA_BUNDLE=/usr/share/d2k/files/tg-roots.pem
 
-# Other settings use upstream defaults (PROBE_MARK, FLOWS, PORTS, CONNBYTES,
-# HTTP_KEEPALIVE_PORTS, VOICE_PORTS, LOGMAX, LOGKEEP, STATS_SEC).
+# Остальные параметры используют значения D2K по умолчанию: PROBE_MARK, FLOWS,
+# PORTS, CONNBYTES, HTTP_KEEPALIVE_PORTS, VOICE_PORTS, LOGMAX, LOGKEEP, STATS_SEC.

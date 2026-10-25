@@ -40,6 +40,9 @@ endif
 
 $(eval $(call BuildPackage,d2k))
 
+# Reapply integration fixes when reusing a previously prepared source tree.
+$(STAMP_PREPARED): $(wildcard $(PATCH_DIR)/*.patch)
+
 romfs:
 	$(INSTALL_DIR) $(ROMFSDIR)/usr/sbin $(ROMFSDIR)/usr/bin $(ROMFSDIR)/usr/share/d2k/files/fake
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/datapath/d2kd $(ROMFSDIR)/usr/sbin/

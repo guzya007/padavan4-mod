@@ -494,7 +494,6 @@ if (found_app_frp()){
 }
 
 //Level 2 Menu
-menuL2_title = new Array(20)
 menuL2_title = new Array("", "<#menu5_11#>", "<#menu5_12#>", "<#menu5_2#>", "<#menu5_3#>", "<#menu5_5#>", "<#menu5_4#>", "<#menu5_6#>", "<#menu5_10#>", "<#menu5_9#>", "<#menu5_7#>");
 if (found_app_scutclient()){
 	menuL2_title.push("<#menu5_13#>");
@@ -720,7 +719,15 @@ function show_menu(L1, L2, L3){
 
 	$("mainMenu").innerHTML = menu1_code;
 
-	for(var i = 1; i <= menuL2_title.length-1; ++i){
+	// Display Services immediately before Administration, without renumbering
+	// the menu/tab IDs used by existing pages and capability checks.
+	var menu_order = [];
+	for (i = 1; i < menuL2_title.length; ++i) {
+		if (i == 7) menu_order.push(21);
+		if (i != 21) menu_order.push(i);
+	}
+	for (var pos = 0; pos < menu_order.length; ++pos) {
+		i = menu_order[pos];
 		if(menuL2_title[i] == "")
 			continue;
 		else if(L2 == i)
