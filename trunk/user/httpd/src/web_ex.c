@@ -3921,6 +3921,18 @@ apply_cgi(const char *url, webs_t wp)
 		websRedirect(wp, current_url);
 		return 0;
 	}
+#if defined(APP_D2K)
+	else if (!strcmp(value, " D2K_ApplyStatus ")) {
+		if (get_login_safe()) {
+			/* rc clears the incomplete marker only after the synchronous
+			 * stop/start handler returns. This is not a service health check. */
+			int pending = access(DIR_RC_INCOMPLETE "/" RCN_RESTART_D2K, F_OK) == 0 ||
+				access(DIR_RC_NOTIFY "/" RCN_RESTART_D2K, F_OK) == 0;
+			websWrite(wp, "{\"pending\":%s}", pending ? "true" : "false");
+		}
+		return 0;
+	}
+#endif
 #if defined(APP_WIREGUARD)
 	else if (!strcmp(value, " wg_action "))
 		return wg_action(wp);

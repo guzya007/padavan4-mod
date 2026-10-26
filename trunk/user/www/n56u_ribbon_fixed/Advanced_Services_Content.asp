@@ -570,7 +570,7 @@ function on_ttyd_link(){
                                             <th colspan="2" style="background-color: #E3E3E3;"><#Adm_System_misc#></th>
                                         </tr>
                                         <tr>
-                                            <th><#Adm_Svc_lltd#></th>
+                                            <th><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this,23,5);"><#Adm_Svc_lltd#></a></th>
                                             <td>
                                                 <div class="main_itoggle">
                                                     <div id="lltd_enable_on_of">
@@ -584,7 +584,7 @@ function on_ttyd_link(){
                                             </td>
                                         </tr>
                                         <tr>
-                                            <th><#Adm_Svc_adsc#></th>
+                                            <th><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this,23,6);"><#Adm_Svc_adsc#></a></th>
                                             <td>
                                                 <div class="main_itoggle">
                                                     <div id="adsc_enable_on_of">
@@ -598,7 +598,7 @@ function on_ttyd_link(){
                                             </td>
                                         </tr>
                                         <tr>
-                                            <th><#Adm_Svc_crond#></th>
+                                            <th><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this,23,7);"><#Adm_Svc_crond#></a></th>
                                             <td>
                                                 <div class="main_itoggle">
                                                     <div id="crond_enable_on_of">
@@ -615,6 +615,7 @@ function on_ttyd_link(){
                                             <td colspan="2">
                                                 <a href="javascript:spoiler_toggle('crond_crontabs')"><span><#Adm_Svc_crontabs#></span></a>
                                                 <div id="crond_crontabs" style="display:none;">
+                                                    <p class="help-block"><#Adm_Svc_crontabs_desc#></p>
                                                     <textarea rows="8" wrap="off" spellcheck="false" maxlength="8192" class="span12" name="crontab.login" style="font-family:'Courier New'; font-size:12px;"><% nvram_dump("crontab.login",""); %></textarea>
                                                 </div>
                                             </td>

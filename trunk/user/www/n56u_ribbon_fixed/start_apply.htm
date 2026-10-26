@@ -72,6 +72,11 @@ function initial(){
 		setTimeout("parent.parent.checkDDNSReturnCode();", 1000);
 	}
 	else if(page_modified == 1){
+		if (current_page.replace(/^\//, '') == 'Advanced_Services_D2K.asp' &&
+		    typeof parent.d2kApplyWait == 'function') {
+			parent.d2kApplyWait(restart_time);
+			return;
+		}
 		parent.showLoading(restart_time, "waiting");
 		if(current_page.length > 0){
 			if(current_page.indexOf("clients.asp") >= 0){

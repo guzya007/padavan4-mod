@@ -162,7 +162,7 @@ typedef uint8_t u8;
 #define EVT_RESTART_TTYD		1
 #define EVT_RESTART_SMARTDNS    1
 #define EVT_RESTART_DOH		5
-#define EVT_RESTART_D2K		15
+#define EVT_RESTART_D2K		5
 #define EVT_RESTART_VLMCSD		1
 #define EVT_RESTART_IPERF3		1
 #define EVT_RESTART_SHADOWSOCKS	2

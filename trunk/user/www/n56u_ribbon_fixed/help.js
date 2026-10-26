@@ -30,7 +30,9 @@ helpcontent[5] = new Array("",
 				"<#LANHostConfig_DHCPStopDNSRebind_itemdesc#>",
 				"<#LANHostConfig_DHCPProxyDNSSEC_itemdesc#>",
 				"<#LANHostConfig_ManualDHCPEnable_itemdesc#>",
-				"<#LANHostConfig_ManualARP_itemdesc#>");
+				"<#LANHostConfig_ManualARP_itemdesc#>",
+				"<#DHCP_Verbose_desc#>",
+				"<#LANHostConfig_x_LDNSServer61_itemdesc#>");
 helpcontent[6] = new Array("",
 				"<#RHELP_desc4#>",
 				"<#RHELP_desc5#>",
@@ -176,7 +178,11 @@ helpcontent[23] = new Array("",
 				"<#TweaksWdg_desc#>",
 				"<#Adm_Svc_vlmcsd_desc#>",
 				"<#Adm_Svc_iperf3_desc#>",
-				"<#Adm_Svc_ttyd_desc#>");
+				"<#Adm_Svc_ttyd_desc#>",
+				"<#Adm_Svc_lltd_desc#>",
+				"<#Adm_Svc_adsc_desc#>",
+				"<#Adm_Svc_crond_desc#>",
+				"<#Reboot_Schedule_desc#>");
 
 // DDNS
 helpcontent[24] = new Array("",

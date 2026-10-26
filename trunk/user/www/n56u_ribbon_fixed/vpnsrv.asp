@@ -844,6 +844,9 @@ function getHash(){
                                         <span id="certs_hint" style="display:none" class="label label-warning"><#OVPN_Hint#></span>
                                     </td>
                                 </tr>
+                                <tr id="row_vpns_wg_status" style="display:none">
+                                    <td colspan="2" id="vpns_wg_status_cell"></td>
+                                </tr>
                                 <tr id="row_vpns_auth">
                                     <th><#VPNS_Auth#></th>
                                     <td>
@@ -1195,6 +1198,7 @@ function getHash(){
 
                         <div id="wnd_vpns_acl" style="display:none">
                             <div id="div_acl_info" class="alert alert-info" style="margin: 10px;"></div>
+                            <p class="help-block" style="margin: 10px;"><#VPNS_RNet_desc#></p>
                             <table class="table">
                                 <tr>
                                     <th width="20%" style="border-top: 0 none;"><#VPNS_CName#>:</th>
@@ -1236,6 +1240,7 @@ function getHash(){
                         </div>
 
                         <div id="wnd_vpns_cli" style="display:none">
+                            <div id="wg_clients_hint" class="alert alert-info" style="display:none; margin: 10px;"><#AWG_ClientsActivityHint#></div>
                             <table class="table" style="width: 100%">
                                 <tr>
                                     <th width="20%" style="border-top: 0 none;"><#IPLocal#></th>

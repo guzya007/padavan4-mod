@@ -493,13 +493,13 @@ function changeBgColor(obj, num){
                                             </td>
                                         </tr>
                                         <tr>
-                                            <th><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this,5,10);"><#LANHostConfig_x_LDNSServer6_itemname#> :</th>
+                                            <th><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this,5,10);"><#LANHostConfig_x_LDNSServer6_itemname#>:</a></th>
                                             <td>
                                                 <input type="text" maxlength="40" class="input" size="15" name="dhcp_dnsv6_x" value="<% nvram_get_x("", "dhcp_dnsv6_x"); %>" onKeyPress="return is_string(this,event);" />
                                             </td>
                                         </tr>
                                         <tr>
-                                            <th><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this,5,10);"><#LANHostConfig_x_LDNSServer61_itemname#> :</th>
+                                            <th><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this,5,21);"><#LANHostConfig_x_LDNSServer61_itemname#>:</a></th>
                                             <td>
                                                 <input type="text" maxlength="40" class="input" size="15" name="dhcp_dnsv61_x" value="<% nvram_get_x("", "dhcp_dnsv61_x"); %>" onKeyPress="return is_string(this,event);" />
                                             </td>
@@ -601,7 +601,7 @@ function changeBgColor(obj, num){
                                             <th colspan="2" style="background-color: #E3E3E3;"><#t2Advanced#></th>
                                         </tr>
                                         <tr>
-                                            <th width="50%"><#DHCP_Verbose#></th>
+                                            <th width="50%"><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this,5,20);"><#DHCP_Verbose#></a></th>
                                             <td>
                                                 <select name="dhcp_verbose" class="input">
                                                     <option value="0" <% nvram_match_x("", "dhcp_verbose", "0","selected"); %>><#CTL_Disabled#> (*)</option>
@@ -696,7 +696,7 @@ function changeBgColor(obj, num){
                                                 <div id="ClientList_Block" class="alert alert-info ddown-list" style="width: 400px;"></div>
                                                 <div class="input-append">
                                                     <input type="text" maxlength="12" class="span12" size="12" name="dhcp_staticmac_x_0" value="<% nvram_get_x("", "dhcp_staticmac_x_0"); %>" onkeypress="return is_hwaddr(event);" style="float:left; width: 110px"/>
-                                                    <button class="btn btn-chevron" id="chevron" type="button" onclick="pullLANIPList(this);" title="Select the MAC of LAN clients."><i class="icon icon-chevron-down"></i></button>
+                                                    <button class="btn btn-chevron" id="chevron" type="button" onclick="pullLANIPList(this);" title="<#DHCP_SelectClient#>"><i class="icon icon-chevron-down"></i></button>
                                                 </div>
                                             </td>
                                             <td width="25%">

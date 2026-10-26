@@ -21,6 +21,7 @@ var $j = jQuery.noConflict();
 <% login_state_hook(); %>
 var savedPanelURL = '';
 var savedEnabled = false;
+var d2kApplying = false;
 
 function panelURL(config, host) {
 	if (!/^\d+\.\d+\.\d+\.\d+$/.test(host)) return '';
@@ -62,11 +63,44 @@ function openPanel() {
 }
 
 function applyRule() {
-	if (!login_safe() || !found_app_d2k()) return;
+	if (d2kApplying || !login_safe() || !found_app_d2k()) return;
+	d2kApplying = true;
 	showLoading();
 	document.form.action_mode.value = ' Apply ';
 	document.form.current_page.value = '/Advanced_Services_D2K.asp';
 	document.form.submit();
+}
+
+function d2kApplyWait(seconds) {
+	var started = Date.now(), minimum = Math.max(1, seconds) * 1000;
+	var finished = false;
+	// Unlike the shared timer, never display "complete" while rc is busy.
+	function poll() {
+		var elapsed = Date.now() - started;
+		if (elapsed >= 60000) {
+			finished = true;
+			d2kApplying = false;
+			hideLoading();
+			document.documentElement.style.overflow = '';
+			alert('<#D2K_ApplyTimeout#>');
+			return;
+		}
+		var progress = Math.min(95, Math.round(elapsed * 100 / minimum));
+		document.getElementById('proceeding_main_txt').textContent = '<#D2K_Applying#>';
+		document.getElementById('proceeding_txt').textContent = progress + '%';
+		document.getElementById('proceeding_bar').style.width = progress + '%';
+		$j.ajax({type: 'post', url: '/apply.cgi', dataType: 'json', timeout: 3000,
+			data: {action_mode: ' D2K_ApplyStatus '},
+			success: function(status) {
+				if (status && status.pending === false && Date.now() - started >= minimum) {
+					finished = true;
+					location.reload();
+				}
+			},
+			complete: function() { if (!finished) setTimeout(poll, 1000); }
+		});
+	}
+	poll();
 }
 
 function done_validating(action) { refreshpage(); }

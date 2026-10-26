@@ -12,6 +12,16 @@ if [ ! -x /etc/storage/sh_ezscript.sh ]; then
 	cp /usr/bin/sh_ezscript.sh /etc/storage/sh_ezscript.sh
 fi
 if [ -x /etc/storage/ap_script.sh ]; then
+	# Translate exact stock comments, preserving user settings, code and mode.
+	# The replacement is atomic; a failed conversion leaves the saved file intact.
+	ap_script=/etc/storage/ap_script.sh
+	ap_tmp="$ap_script.ru.$$"
+	if [ ! -L "$ap_script" ] && cp -p "$ap_script" "$ap_tmp"; then
+		if awk -v changed_only=1 -f /usr/bin/ap-script-comments.awk "$ap_script" > "$ap_tmp"; then
+			mv -f "$ap_tmp" "$ap_script"
+		fi
+	fi
+	rm -f "$ap_tmp"
 	/etc/storage/ap_script.sh >/dev/null 2>&1 &
 else
 	cp /usr/bin/ap_script.sh /etc/storage/ap_script.sh

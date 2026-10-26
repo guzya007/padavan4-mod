@@ -392,7 +392,7 @@ function wg_init(role) {
         if (document.form.elements[name]) document.form.elements[name].value = wgSettings[name];
     });
     if (!login_safe()) $j(table).find('input, textarea, select, button').prop('disabled', true);
-    if (role !== 'vpnc') table.parentNode.insertBefore(status, table.nextSibling);
+    if (role === 'vpns') document.getElementById('vpns_wg_status_cell').appendChild(status);
     wgStatusTimer = setTimeout(wg_refresh_status, 1000);
 }
 
@@ -411,6 +411,9 @@ function wg_toggle(role, enabled, selected) {
         this.disabled = !active || !login_safe() || this.getAttribute('data-wg-unloaded') === '1' || this.getAttribute('data-wg-no-client') === '1';
     });
     if (role === 'vpns') {
+        $j('#row_vpns_wg_status').toggle(!!active);
+        $j('#tab_vpns_cli').text(selected ? '<#AWG_ClientsActivity#>' : '<#ConClients#>');
+        $j('#wg_clients_hint').toggle(!!selected);
         $j('#wg_client_genkey').toggle(!!selected);
         if (active) wg_server_prepare();
     }
@@ -680,7 +683,7 @@ function wg_refresh_status() {
 function wg_refresh_clients() {
     var generation = wgStatusGeneration;
     var table = document.querySelector('#wnd_vpns_cli table');
-    var labels = ['<#VPNS_CName#>', '<#AWG_Address#>', '<#AWG_Endpoint#>', '<#AWG_Handshake#>', 'RX', 'TX'];
+    var labels = ['<#VPNS_CName#>', '<#AWG_Address#>', '<#AWG_Endpoint#>', '<#AWG_LastHandshake#>', 'RX', 'TX'];
     var header = table.rows[0];
     header.textContent = '';
     labels.forEach(function(label) { var th = document.createElement('th'); th.textContent = label; header.appendChild(th); });
@@ -695,7 +698,7 @@ function wg_refresh_clients() {
             }
             clients.forEach(function(client) {
                 var row = table.insertRow(); row.className = 'client';
-                var handshake = client[3] ? new Date(client[3] * 1000).toLocaleString() : '<#Nodata#>';
+                var handshake = client[3] ? new Date(client[3] * 1000).toLocaleString() : '<#AWG_NoHandshake#>';
                 [client[2], client[0], client[1], handshake, client[4], client[5]].forEach(function(value) {
                     row.insertCell().textContent = value;
                 });

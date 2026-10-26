@@ -488,7 +488,7 @@ function updateDateTime()
                                             <th colspan="2" style="background-color: #E3E3E3;"><#t2Misc#></th>
                                         </tr>
                                         <tr id="reboot_schedule_enable_tr">
-                                            <th width="50%" style="border-top: 0 none;"><#Reboot_Schedule#></th>
+                                            <th width="50%" style="border-top: 0 none;"><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this,23,8);"><#Reboot_Schedule#></a></th>
                                             <td>
                                                 <div class="main_itoggle">
                                                     <div id="reboot_schedule_enable_on_of">
