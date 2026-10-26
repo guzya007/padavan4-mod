@@ -31,11 +31,14 @@ wg_prefix()
 wg_awg_conf()
 {
     [ "$MODULE" = amneziawg ] || return 0
-    local key value
-    for key in jc jmin jmax i1 i2 i3 i4 i5 h1 h2 h3 h4 s1 s2 s3 s4 \
-        contentpaddingaddition headerprotectionkey rekeyaftertime rekeytimeout \
-        rejectaftertime keepalivetimeout maxhandshakeattempts randomtrailers disablecookies; do
-        value=$(nvram get "${1}_awg_$key")
+    local key nvkey value
+    # AmneziaVPN's native-config importer is case-sensitive, unlike wg setconf.
+    # Keep the existing lower-case NVRAM names, but emit canonical INI keys.
+    for key in Jc Jmin Jmax I1 I2 I3 I4 I5 H1 H2 H3 H4 S1 S2 S3 S4 \
+        ContentPaddingAddition HeaderProtectionKey RekeyAfterTime RekeyTimeout \
+        RejectAfterTime KeepaliveTimeout MaxHandshakeAttempts RandomTrailers DisableCookies; do
+        nvkey=$(printf '%s' "$key" | tr 'A-Z' 'a-z')
+        value=$(nvram get "${1}_awg_$nvkey")
         [ -n "$value" ] || continue
         # NVRAM data is configuration, never shell code or extra INI sections.
         wg_single_line "$value" || return 1

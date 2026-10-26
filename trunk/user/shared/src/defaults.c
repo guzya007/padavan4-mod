@@ -35,7 +35,7 @@ struct nvram_pair router_defaults[] = {
 	/* Miscellaneous parameters */
 	{ "time_zone", DEF_TIMEZONE },
 	{ "preferred_lang", "RU" },
-	{ "log_float_ui", "0" },		/* WebUI syslog float panel mode */
+	{ "log_float_ui", "1" },		/* WebUI syslog float panel mode */
 	{ "log_ipaddr", "" },			/* syslog recipient IP */
 	{ "log_port", "514" },			/* syslog recipient Port */
 	{ "log_level", "0" },			/* Bitmask 0:off 1:denied 2:accepted */
@@ -1060,9 +1060,14 @@ struct nvram_pair router_defaults[] = {
 #if defined(APP_D2K)
 	{ "d2k_enable", "0" },
 #endif
-	{ "lltd_enable", "1" },
+	{ "lltd_enable", "0" },
 	{ "adsc_enable", "0" },
+#if defined(APP_SCUT)
+	/* init_crontab() installs the SCUT watchdog even without user jobs. */
 	{ "crond_enable", "1" },
+#else
+	{ "crond_enable", "0" },
+#endif
 	{ "crond_log", "0" },
 
 #if defined(BOARD_N65U)

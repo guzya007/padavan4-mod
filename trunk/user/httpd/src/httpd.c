@@ -335,6 +335,11 @@ is_safe_ifname(const char *ifname)
 {
 	if (strcmp(ifname, IFNAME_BR) == 0)
 		return 1;
+#if defined(APP_WIREGUARD)
+	/* Trust the server tunnel like OpenVPN, never the outbound VPN client. */
+	if (strcmp(ifname, IFNAME_SERVER_WG) == 0)
+		return 1;
+#endif
 #if defined(APP_OPENVPN)
 	if (strcmp(ifname, IFNAME_SERVER_TUN) == 0)
 		return 1;

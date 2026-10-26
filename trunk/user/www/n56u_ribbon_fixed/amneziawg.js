@@ -379,9 +379,9 @@ function wg_init(role) {
     }
     if (role === 'vpnc') {
         wg_clients(table);
-        wg_textarea(table, 'scripts.vpnc_remote_network.list', '<#AWG_RemoteNetworks#>', '<#AWG_RemoteHint#>');
         if (wgSettings.ipset_supported)
             wg_textarea(table, 'scripts.vpnc_domains.list', '<#AWG_Domains#>', '<#AWG_DomainsHint#>').maxLength = 32768;
+        wg_textarea(table, 'scripts.vpnc_remote_network.list', '<#AWG_RemoteNetworks#>', '<#AWG_RemoteHint#>');
         wg_textarea(table, 'scripts.vpnc_exclude_network.list', '<#AWG_ExcludeNetworks#>', '<#AWG_ExcludeHint#>');
         wg_textarea(table, 'scripts.vpnc_post_script.sh', '<#AWG_PostScript#>', '<#AWG_PostScriptHint#>');
     } else wg_server_download_ui(table);
