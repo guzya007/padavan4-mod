@@ -3381,6 +3381,12 @@ static int ej_wireguard_config(int eid, webs_t wp, int argc, char **argv)
 #endif
 			websWrite(wp, ",\"lan_clients\":");
 			wg_lan_clients(wp);
+		} else {
+			/* A suggestion, not a saved override: WAN/DDNS can change later. */
+			const char *endpoint = nvram_match("ddns_enable_x", "1") ? nvram_safe_get("ddns_hostname_x") : "";
+			if (!*endpoint) endpoint = nvram_safe_get("wan0_ipaddr");
+			websWrite(wp, ",\"server_endpoint\":");
+			wg_json_string(wp, endpoint);
 		}
 #if defined(APP_AMNEZIAWG)
 		for (i = 0; awg_keys[i]; i++) {
@@ -3528,6 +3534,10 @@ static int wg_status_json(webs_t wp, const char *iface)
 	if (client && enabled && nvram_match("vpnc_state_t", "3")) {
 		for (i = 0; stages[i]; i++)
 			if (nvram_match("vpnc_wg_error_t", stages[i])) { error = stages[i]; break; }
+		state = "error";
+	} else if (!client && enabled && !running && *nvram_safe_get("vpns_wg_error_t")) {
+		for (i = 0; stages[i]; i++)
+			if (nvram_match("vpns_wg_error_t", stages[i])) { error = stages[i]; break; }
 		state = "error";
 	} else if (!enabled) state = "disabled";
 	else if (!running) state = "stopped";

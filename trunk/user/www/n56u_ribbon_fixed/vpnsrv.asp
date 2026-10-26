@@ -443,6 +443,10 @@ function markGroupACL(o, c, b) {
 	var acl_addr;
 	document.form.group_id.value = "VPNSACLList";
 	if(b == " Add "){
+		if (document.form.vpns_type.value === '3' && document.form.vpns_pass_x_0.getAttribute('data-wg-key-pending') === '1') {
+			alert('<#AWG_KeyPending#>');
+			return false;
+		}
 		if (document.form.vpns_type.value === '3' && !/^[A-Za-z0-9+/]{43}=$/.test(document.form.vpns_pass_x_0.value)) {
 			alert('<#AWG_InvalidKey#>');
 			return false;
@@ -623,7 +627,7 @@ function showACLList(vnet_show,rnet_show,is_openvpn){
 					acl_rnet = ACLList[i][3] + ' / ' + ACLList[i][4];
 			}
 			
-			if (is_openvpn){
+			if (is_openvpn && document.form.vpns_type.value !== '3'){
 				if (openssl_util_found() && openvpn_srv_cert_found() && login_safe())
 					acl_pass = '<a href="javascript:export_client_ovpn(\'' + ACLList[i][0] + '\');"><#VPNS_Export#></a>';
 			}else

@@ -1,6 +1,7 @@
 /* Native VPN type 3 UI, using padavan-ng's NVRAM names and AWG 3.1 parameters. */
 var wgRole, wgStatusTimer, wgImportSequence = 0;
 var wgClientState = null, wgStatusMode = '', wgStatusGeneration = 0, wgStatusRequest = 0;
+var wgServerDefaultsRequest = null;
 var wgHelpEnabled = '<% nvram_get_x("", "help_enable"); %>' !== '0';
 var wgAwgFields = ['jc', 'jmin', 'jmax', 'i1', 'i2', 'i3', 'i4', 'i5',
     'h1', 'h2', 'h3', 'h4', 's1', 's2', 's3', 's4', 'contentpaddingaddition',
@@ -179,16 +180,25 @@ function wg_clients(table) {
 
 function wg_key(action, key, callback) {
     if (!login_safe()) return;
-    $j.post('/apply.cgi', {action_mode: ' wg_action ', action: action, privkey: key || ''}, function(response) {
-        callback($j.trim(response));
+    return $j.ajax({type: 'post', url: '/apply.cgi', dataType: 'text', timeout: 10000,
+        data: {action_mode: ' wg_action ', action: action, privkey: key || ''},
+        success: function(response) {
+            response = $j.trim(response);
+            if (/^[A-Za-z0-9+/]{43}=$/.test(response)) callback(response);
+            else alert('<#AWG_KeyError#>');
+        }, error: function() { alert('<#AWG_KeyError#>'); }
     });
 }
 
 function wg_generate(name, action) {
+    var input = document.form.elements[name], previous = input.value;
+    if (!login_safe() || input.getAttribute('data-wg-key-pending') === '1') return;
+    input.setAttribute('data-wg-key-pending', '1');
     wg_key(action || 'genkey', '', function(key) {
-        document.form.elements[name].value = key;
+        if (input.value !== previous || (wgRole === 'vpns' && document.form.vpns_type.value !== '3')) return;
+        input.value = key;
         wg_public(name);
-    });
+    }).always(function() { input.removeAttribute('data-wg-key-pending'); });
 }
 
 function wg_public(name) {
@@ -204,6 +214,61 @@ function wg_public(name) {
         if (document.form.elements[name].value === key)
             document.form.elements[publicName].value = publicKey;
     });
+}
+
+function wg_server_prepare() {
+    if (!login_safe()) return;
+    var form = document.form;
+    // Only fill blank fields in the form. Nothing is saved by opening the page.
+    var defaults = {vpns_wg_port: '51820', vpns_wg_mtu: '1280', vpns_vnet: '10.8.0.0'};
+    Object.keys(defaults).forEach(function(name) {
+        if (!form.elements[name].value) form.elements[name].value = defaults[name];
+    });
+    if (found_app_awg() && !wgServerDefaultsRequest && wgAwgFields.some(function(field) {
+        return !/^(i[1-5]|headerprotectionkey)$/.test(field) && !form.elements['vpns_awg_' + field].value;
+    })) {
+        wgServerDefaultsRequest = $j.ajax({url: '/amneziawg.json', dataType: 'json', timeout: 10000,
+            success: function(values) {
+                if (!login_safe() || form.vpns_type.value !== '3') return;
+                if (!Array.isArray(values) || !values[0] || !wgAwgFields.every(function(field) {
+                    return typeof values[0][field] === 'string';
+                })) { alert('<#AWG_DefaultsError#>'); return; }
+                wgAwgFields.forEach(function(field) {
+                    var input = form.elements['vpns_awg_' + field];
+                    if (!input.value) input.value = values[0][field];
+                });
+            }, error: function() { alert('<#AWG_DefaultsError#>'); }
+        }).always(function() { wgServerDefaultsRequest = null; });
+    }
+    if (!form.vpns_wg_private.value) wg_generate('vpns_wg_private');
+    else if (!form.vpns_wg_public.value) wg_public('vpns_wg_private');
+    var index = 1, octet = 2;
+    while (ACLList.some(function(client) { return client[0] === 'client' + index; })) index++;
+    while (octet <= 254 && ACLList.some(function(client) { return +client[2] === octet; })) octet++;
+    if (!form.vpns_user_x_0.value) form.vpns_user_x_0.value = 'client' + index;
+    if (!form.vpns_addr_x_0.value && octet <= 254) form.vpns_addr_x_0.value = octet;
+    if (ACLList.length < 50 && !form.vpns_pass_x_0.value) wg_generate('vpns_pass_x_0');
+}
+
+function wg_server_download_ui(table) {
+    var cell = table.insertRow().insertCell(); cell.colSpan = 2;
+    var hint = document.createElement('p');
+    hint.textContent = '<#AWG_ServerSetupHint#>'; cell.appendChild(hint);
+    var select = document.createElement('select'); select.id = 'wg_export_client';
+    select.setAttribute('aria-label', '<#VPNS_CName#>');
+    ACLList.forEach(function(client, index) {
+        var option = document.createElement('option');
+        option.value = index; option.textContent = client[0]; select.appendChild(option);
+    });
+    cell.appendChild(select);
+    wg_button(select, '<#AWG_Download#>', function() {
+        if (select.value !== '') wg_export_client(+select.value, false, this);
+    });
+    if (!ACLList.length) {
+        select.setAttribute('data-wg-no-client', '1');
+        cell.lastChild.setAttribute('data-wg-no-client', '1');
+    }
+    wg_button(select, '<#AWG_AddClient#>', function() { showTab('#acl'); });
 }
 
 function wg_init(role) {
@@ -259,7 +324,11 @@ function wg_init(role) {
         wg_input(table, 'vpnc_wg_if_dns', 'DNS', 'text', '<#AWG_DNSHint#>');
     } else {
         wg_input(table, 'vpns_wg_port', '<#OVPN_Port#>', 'text', '<#AWG_PortHint#>');
-        wg_input(table, 'vpns_wg_ext_addr', '<#AWG_Endpoint#>', 'text', '<#AWG_ServerEndpointHint#>');
+        var endpoint = wg_input(table, 'vpns_wg_ext_addr', '<#AWG_Endpoint#>', 'text', '<#AWG_ServerEndpointHint#>');
+        endpoint.placeholder = wgSettings.server_endpoint || '';
+        var endpointHint = document.createElement('p'); endpointHint.className = 'help-block';
+        endpointHint.textContent = '<#AWG_ServerNATHint#>';
+        endpoint.parentNode.appendChild(endpointHint);
         wg_textarea(table, 'scripts.vpns_post_script.sh', '<#AWG_ServerPostScript#>', '<#AWG_PostScriptHint#>');
         var keyCell = document.form.vpns_pass_x_0;
         keyCell.maxLength = 44;
@@ -315,7 +384,7 @@ function wg_init(role) {
             wg_textarea(table, 'scripts.vpnc_domains.list', '<#AWG_Domains#>', '<#AWG_DomainsHint#>').maxLength = 32768;
         wg_textarea(table, 'scripts.vpnc_exclude_network.list', '<#AWG_ExcludeNetworks#>', '<#AWG_ExcludeHint#>');
         wg_textarea(table, 'scripts.vpnc_post_script.sh', '<#AWG_PostScript#>', '<#AWG_PostScriptHint#>');
-    }
+    } else wg_server_download_ui(table);
     var base = document.getElementById(role === 'vpnc' ? 'tbl_vpnc_config' : 'tbl_vpn_config');
     base.parentNode.insertBefore(table, base.nextSibling);
     // File contents are JSON-escaped by httpd; do not expose them via innerHTML.
@@ -339,15 +408,19 @@ function wg_toggle(role, enabled, selected) {
     }
     $j('#tbl_' + role + '_wg, #wg_status').toggle(!!active);
     $j('#tbl_' + role + '_wg').find('input, textarea, select, button').each(function() {
-        this.disabled = !active || !login_safe() || this.getAttribute('data-wg-unloaded') === '1';
+        this.disabled = !active || !login_safe() || this.getAttribute('data-wg-unloaded') === '1' || this.getAttribute('data-wg-no-client') === '1';
     });
-    if (role === 'vpns') $j('#wg_client_genkey').toggle(!!selected);
+    if (role === 'vpns') {
+        $j('#wg_client_genkey').toggle(!!selected);
+        if (active) wg_server_prepare();
+    }
 }
 
 function wg_valid(role) {
     if (!login_safe()) return false;
     var keyName = role + (role === 'vpnc' ? '_wg_if_private' : '_wg_private');
     var key = document.form.elements[keyName];
+    if (key.getAttribute('data-wg-key-pending') === '1') { alert('<#AWG_KeyPending#>'); return false; }
     if ((role === 'vpnc' || key.value) && !/^[A-Za-z0-9+/]{43}=$/.test(key.value)) {
         alert('<#AWG_InvalidKey#>'); key.focus(); return false;
     }
@@ -376,7 +449,13 @@ function wg_valid(role) {
         }
         if (!document.form.vpnc_wg_if_addr.value || !document.form.vpnc_wg_peer_endpoint.value ||
             !document.form.vpnc_wg_peer_allowedips.value) { alert('<#JS_fieldblank#>'); return false; }
-    } else if (!validate_range(document.form.vpns_wg_port, 1, 65535)) return false;
+    } else {
+        if (!validate_range(document.form.vpns_wg_port, 1, 65535)) return false;
+        var endpoint = document.form.vpns_wg_ext_addr;
+        if (endpoint.value && !wg_valid_server_host(endpoint.value)) {
+            alert('<#AWG_InvalidConfig#>'); endpoint.focus(); return false;
+        }
+    }
     if (found_app_awg()) {
         var jc = document.form.elements[role + '_awg_jc'];
         var jmin = document.form.elements[role + '_awg_jmin'];
@@ -400,8 +479,34 @@ function wg_valid(role) {
             }
             wg_reveal(input); alert('<#AWG_InvalidConfig#>'); input.focus(); return false;
         }
+        var headers = [];
+        for (var h = 1; h <= 4; h++) {
+            var header = document.form.elements[role + '_awg_h' + h];
+            var bounds = header.value.trim().split('-').map(Number);
+            var lo = bounds[0], hi = bounds.length === 2 ? bounds[1] : lo;
+            if (headers.some(function(other) { return lo <= other[1] && hi >= other[0]; })) {
+                wg_reveal(header); alert('<#AWG_HeaderOverlap#>'); header.focus(); return false;
+            }
+            headers.push([lo, hi]);
+        }
+        if (document.form.elements[role + '_awg_headerprotectionkey'].value) {
+            for (var s = 1; s <= 4; s++) {
+                var padding = document.form.elements[role + '_awg_s' + s];
+                if (+padding.value < 12) {
+                    wg_reveal(padding); alert('<#AWG_HeaderPadding#>'); padding.focus(); return false;
+                }
+            }
+        }
     }
     return true;
+}
+
+function wg_valid_server_host(value) {
+    if (!/^[a-zA-Z0-9._:-]+$/.test(value) || value === '0.0.0.0') return false;
+    if (value.indexOf(':') < 0) return true;
+    // Colons are only for IPv6, not an accidental hostname:port pair.
+    try { new URL('http://[' + value + ']/'); return true; }
+    catch (error) { return false; }
 }
 
 function wg_valid_ipv4_list(value) {
@@ -606,25 +711,40 @@ function wg_restore_client_headers() {
     labels.forEach(function(label) { var th = document.createElement('th'); th.textContent = label; table.rows[0].appendChild(th); });
 }
 
-function wg_export_client(index) {
-    if (!login_safe()) return;
-    $j.post('/apply.cgi', {action_mode: ' ExportWGConf ', common_name: ACLList[index][0]}, function(config) {
-        if (!config) { alert('<#AWG_InvalidConfig#>'); return; }
-        var box = document.getElementById('wg_export_' + index);
-        box.textContent = '';
-        var button = document.createElement('button');
-        button.type = 'button'; button.className = 'btn btn-success'; button.textContent = '<#CTL_onlysave#>';
-        button.onclick = function() {
+function wg_export_client(index, showQR, button) {
+    if (!login_safe() || !ACLList[index] || document.form.vpns_type.value !== '3') return;
+    var changed = Object.keys(wgSettings).some(function(name) {
+        var input = document.form.elements[name];
+        return /^vpns_(wg_|awg_)/.test(name) && input && input.value !== wgSettings[name];
+    });
+    if (changed || document.form.vpns_vnet.value !== vpn_ipvnet_x) { alert('<#AWG_ApplyBeforeExport#>'); return; }
+    if (button) button.disabled = true;
+    $j.ajax({type: 'post', url: '/apply.cgi', dataType: 'text', timeout: 15000,
+        data: {action_mode: ' ExportWGConf ', common_name: ACLList[index][0]}, success: function(config) {
+        if (document.form.vpns_type.value !== '3') return;
+        if (config.length > 65536 || !/^\[Interface\]\s/m.test(config) || !/^\[Peer\]\s/m.test(config)) {
+            alert('<#AWG_ExportError#>'); return;
+        }
+        if (!showQR) {
             var url = URL.createObjectURL(new Blob([config], {type: 'text/plain'}));
             var link = document.createElement('a');
-            link.href = url; link.download = ACLList[index][0] + '_wg.conf';
-            document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
-        };
-        box.appendChild(button);
+            link.href = url; link.download = ACLList[index][0].replace(/[^a-zA-Z0-9_-]/g, '_') + (found_app_awg() ? '_awg.conf' : '_wg.conf');
+            document.body.appendChild(link); link.click(); link.remove();
+            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+            return;
+        }
+        var box = document.getElementById('wg_export_' + index);
+        box.textContent = '';
+        var hide = document.createElement('button');
+        hide.type = 'button'; hide.className = 'btn'; hide.textContent = '<#AWG_HideConfig#>';
+        hide.onclick = function() { box.textContent = ''; };
+        box.appendChild(hide);
         var qr = document.createElement('div'); box.appendChild(qr);
         try { new QRCode(qr, {text: config, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.L}); }
         catch (error) { qr.textContent = '<#AWG_QRTooLong#>'; }
         var pre = document.createElement('pre'); pre.textContent = config; box.appendChild(pre);
+        }, error: function() { alert('<#AWG_ExportError#>'); },
+        complete: function() { if (button) button.disabled = !login_safe() || document.form.vpns_type.value !== '3'; }
     });
 }
 
@@ -634,9 +754,12 @@ function wg_acl_exports() {
         var row = document.getElementById('row' + index);
         var cell = row.cells[1]; cell.textContent = '';
         var button = document.createElement('button');
-        button.type = 'button'; button.className = 'btn'; button.textContent = '<#VPNS_Export#> / QR';
-        button.onclick = function() { wg_export_client(index); };
+        button.type = 'button'; button.className = 'btn'; button.textContent = '<#AWG_Download#>';
+        button.disabled = !login_safe();
+        button.onclick = function() { wg_export_client(index, false, button); };
         cell.appendChild(button);
+        wg_button(button, 'QR', function() { wg_export_client(index, true, this); });
+        cell.lastChild.disabled = !login_safe();
         var exportRow = document.createElement('tr');
         var exportCell = document.createElement('td');
         exportCell.colSpan = 5; exportCell.id = 'wg_export_' + index;
